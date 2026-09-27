@@ -1,7 +1,12 @@
 -- @description Yamaha MX Genos-Style Arranger Suite
--- @author Jose Cotrino
+-- @author José M. Cotrino
 -- @version 1.0.0
 -- @about Suite de arreglista estilo Genos 2 para Yamaha MX88, Launchpad Mini y NanoKey2.
+-- @provides
+--   [main] .
+--   lib/*.lua
+--   ../../Effects/Yamaha/*.jsfx > ../Effects/Yamaha/
+--   ../../TrackTemplates/*.RTrackTemplate > ../TrackTemplates/
 
 local reaper = reaper
 
