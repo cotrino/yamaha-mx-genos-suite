@@ -1,0 +1,175 @@
+<TRACKSTRUCT
+  <TRACK
+    NAME "YAMAHA MX (MASTER RIG)"
+    PEAKCOL 16580352
+    BEAT 0
+    AUTOMODE 0
+    VOLPAN 1 0 -1 -1 1
+    MUTESOLO 0 0 0
+    IPHASE 0
+    ISALLCHAN 0
+    FOLDERDEPTH 1
+    AUTOARM 0
+    MAINSEND 1 0
+  >
+  <TRACK
+    NAME "Ch 01 - AP: Concert Grand"
+    PEAKCOL 16580352
+    VOLPAN 1 0 -1 -1 1
+    MUTESOLO 0 0 0
+    FOLDERDEPTH 0
+    AUTOARM 1
+    REC 1 4127 0 0 0 0 0
+    MIDIHWOUT 0
+  >
+  <TRACK
+    NAME "Ch 02 - EP: Tine Vintage"
+    PEAKCOL 16580352
+    VOLPAN 1 0 -1 -1 1
+    MUTESOLO 0 0 0
+    FOLDERDEPTH 0
+    AUTOARM 1
+    REC 1 4127 0 0 0 0 0
+    MIDIHWOUT 32
+  >
+  <TRACK
+    NAME "Ch 03 - EP: Reed Classic"
+    PEAKCOL 16580352
+    VOLPAN 1 0 -1 -1 1
+    MUTESOLO 0 0 0
+    FOLDERDEPTH 0
+    AUTOARM 1
+    REC 1 4127 0 0 0 0 0
+    MIDIHWOUT 64
+  >
+  <TRACK
+    NAME "Ch 04 - Organ: Tonewheel"
+    PEAKCOL 16580352
+    VOLPAN 1 0 -1 -1 1
+    MUTESOLO 0 0 0
+    FOLDERDEPTH 0
+    AUTOARM 1
+    REC 1 4127 0 0 0 0 0
+    MIDIHWOUT 96
+  >
+  <TRACK
+    NAME "Ch 05 - Str: Full Orchestra"
+    PEAKCOL 16580352
+    VOLPAN 1 0 -1 -1 1
+    MUTESOLO 0 0 0
+    FOLDERDEPTH 0
+    AUTOARM 1
+    REC 1 4127 0 0 0 0 0
+    MIDIHWOUT 128
+  >
+  <TRACK
+    NAME "Ch 06 - Brass: Ensemble"
+    PEAKCOL 16580352
+    VOLPAN 1 0 -1 -1 1
+    MUTESOLO 0 0 0
+    FOLDERDEPTH 0
+    AUTOARM 1
+    REC 1 4127 0 0 0 0 0
+    MIDIHWOUT 160
+  >
+  <TRACK
+    NAME "Ch 07 - Syn: Lead"
+    PEAKCOL 16580352
+    VOLPAN 1 0 -1 -1 1
+    MUTESOLO 0 0 0
+    FOLDERDEPTH 0
+    AUTOARM 1
+    REC 1 4127 0 0 0 0 0
+    MIDIHWOUT 192
+  >
+  <TRACK
+    NAME "Ch 08 - Syn: Pad / Choir"
+    PEAKCOL 16580352
+    VOLPAN 1 0 -1 -1 1
+    MUTESOLO 0 0 0
+    FOLDERDEPTH 0
+    AUTOARM 1
+    REC 1 4127 0 0 0 0 0
+    MIDIHWOUT 224
+  >
+  <TRACK
+    NAME "Ch 09 - Gtr: Steel Acoustic"
+    PEAKCOL 16580352
+    VOLPAN 1 0 -1 -1 1
+    MUTESOLO 0 0 0
+    FOLDERDEPTH 0
+    AUTOARM 1
+    REC 1 4127 0 0 0 0 0
+    MIDIHWOUT 256
+  >
+  <TRACK
+    NAME "Ch 10 - Drum: Stereo Kit"
+    PEAKCOL 16580352
+    VOLPAN 1 0 -1 -1 1
+    MUTESOLO 0 0 0
+    FOLDERDEPTH 0
+    AUTOARM 1
+    REC 1 4127 0 0 0 0 0
+    MIDIHWOUT 288
+  >
+  <TRACK
+    NAME "Ch 11 - Bass: Electric"
+    PEAKCOL 16580352
+    VOLPAN 1 0 -1 -1 1
+    MUTESOLO 0 0 0
+    FOLDERDEPTH 0
+    AUTOARM 1
+    REC 1 4127 0 0 0 0 0
+    MIDIHWOUT 320
+  >
+  <TRACK
+    NAME "Ch 12 - Clav / Mallet"
+    PEAKCOL 16580352
+    VOLPAN 1 0 -1 -1 1
+    MUTESOLO 0 0 0
+    FOLDERDEPTH 0
+    AUTOARM 1
+    REC 1 4127 0 0 0 0 0
+    MIDIHWOUT 352
+  >
+  <TRACK
+    NAME "Ch 13 - Ethnic / World"
+    PEAKCOL 16580352
+    VOLPAN 1 0 -1 -1 1
+    MUTESOLO 0 0 0
+    FOLDERDEPTH 0
+    AUTOARM 1
+    REC 1 4127 0 0 0 0 0
+    MIDIHWOUT 384
+  >
+  <TRACK
+    NAME "Ch 14 - Sound FX / Perc"
+    PEAKCOL 16580352
+    VOLPAN 1 0 -1 -1 1
+    MUTESOLO 0 0 0
+    FOLDERDEPTH 0
+    AUTOARM 1
+    REC 1 4127 0 0 0 0 0
+    MIDIHWOUT 416
+  >
+  <TRACK
+    NAME "Ch 15 - User Part 1"
+    PEAKCOL 16580352
+    VOLPAN 1 0 -1 -1 1
+    MUTESOLO 0 0 0
+    FOLDERDEPTH 0
+    AUTOARM 1
+    REC 1 4127 0 0 0 0 0
+    MIDIHWOUT 448
+  >
+  <TRACK
+    NAME "Ch 16 - Auxiliary (NanoKey2)"
+    PEAKCOL 16580352
+    VOLPAN 1 0 -1 -1 1
+    MUTESOLO 0 0 0
+    FOLDERDEPTH -1
+    AUTOARM 1
+    REC 1 4127 0 0 0 0 0
+    MIDIHWOUT 480
+  >
+>

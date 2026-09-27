@@ -1,0 +1,30 @@
+desc:Yamaha MX Real-Time Chord Detector
+author:Jose Cotrino
+tags:MIDI chord analysis split
+
+slider1:36<0,127,1>Split Lower Note (C1)
+slider2:59<0,127,1>Split Upper Note (B2)
+slider3:0<0,11,1{C,C#,D,D#,E,F,F#,G,G#,A,A#,B}>Detected Root
+slider4:0<0,5,1{Maj,m,7,dim,aug,5}>Detected Type
+
+@init
+note_count = 0;
+
+@block
+while (midirecv(ts, msg1, msg2, msg3)) (
+  status = msg1 & $xF0;
+  is_note_on = (status == $x90) && (msg3 > 0);
+  is_note_off = (status == $x80) || ((status == $x90) && (msg3 == 0));
+
+  note = msg2;
+  
+  // Si la nota cae dentro de la zona de división (Split)
+  (note >= slider1 && note <= slider2) ? (
+    is_note_on ? (
+      slider3 = note % 12; // Actualizar nota raíz automáticamente
+    );
+  );
+
+  // Pasatrazos MIDI continuo
+  midisend(ts, msg1, msg2, msg3);
+);

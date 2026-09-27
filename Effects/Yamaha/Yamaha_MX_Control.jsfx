@@ -1,0 +1,51 @@
+desc:Yamaha MX Hardware Controller
+author:Jose Cotrino
+tags:MIDI synth control yamaha mx88
+
+slider1:0<0,127,1>Bank MSB (CC0)
+slider2:0<0,127,1>Bank LSB (CC32)
+slider3:0<0,127,1>Program Number
+slider4:1<0,1,1{Off,On}>Arpeggio Switch (CC89)
+slider5:0<0,1,1{Off,On}>Arpeggio Hold (CC90)
+slider6:40<0,127,1>Reverb Send (CC91)
+slider7:0<0,127,1>Chorus Send (CC93)
+slider8:64<0,127,1>Cutoff Filter (CC74)
+slider9:64<0,127,1>Resonance (CC71)
+slider10:1<1,999,1>Arp Pattern HW (1-999)
+
+@init
+ext_no_auto_seek = 1;
+
+@slider
+ch = 0; // Canal MIDI 1 (0-15)
+
+// 1. Bank Select & Program Change
+midisend(0, $xB0 | ch, 0, slider1);
+midisend(0, $xB0 | ch, 32, slider2);
+midisend(0, $xC0 | ch, slider3, 0);
+
+// 2. Control Changes (Arp, FX, Filter)
+midisend(0, $xB0 | ch, 89, slider4 ? 127 : 0);
+midisend(0, $xB0 | ch, 90, slider5 ? 127 : 0);
+midisend(0, $xB0 | ch, 91, slider6);
+midisend(0, $xB0 | ch, 93, slider7);
+midisend(0, $xB0 | ch, 74, slider8);
+midisend(0, $xB0 | ch, 71, slider9);
+
+// 3. SysEx Arpegio Hardware Yamaha MX
+arp_num = slider10;
+msb = (arp_num >> 7) & 127;
+lsb = arp_num & 127;
+
+midisend_buf(0, $xF0);
+midisend_buf(0, $x43);
+midisend_buf(0, $x10);
+midisend_buf(0, $x7F);
+midisend_buf(0, $x1C);
+midisend_buf(0, $x36);
+midisend_buf(0, ch);
+midisend_buf(0, $x02);
+midisend_buf(0, $x01);
+midisend_buf(0, msb);
+midisend_buf(0, lsb);
+midisend_buf(0, $xF7);
