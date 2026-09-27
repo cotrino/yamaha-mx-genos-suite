@@ -60,19 +60,21 @@ end
 
 -- Send the complete state to the Yamaha MX synthesizer.
 function Driver.send_full_state(dev_id, channel, program, arpeggio, arp_sw, rev, cho, cut, res)
+  if dev_id == nil then return end
   local c = (channel - 1) & 0x0F
+  local output_mode = 16 + dev_id
 
   if program then
-    reaper.StuffMIDIMessage(0, 0xB0 | c, 0, program.msb)
-    reaper.StuffMIDIMessage(0, 0xB0 | c, 32, program.lsb)
-    reaper.StuffMIDIMessage(0, 0xC0 | c, program.prg, 0)
+    reaper.StuffMIDIMessage(output_mode, 0xB0 | c, 0, program.msb)
+    reaper.StuffMIDIMessage(output_mode, 0xB0 | c, 32, program.lsb)
+    reaper.StuffMIDIMessage(output_mode, 0xC0 | c, program.prg, 0)
   end
 
-  reaper.StuffMIDIMessage(0, 0xB0 | c, 89, arp_sw and 127 or 0)
-  reaper.StuffMIDIMessage(0, 0xB0 | c, 91, math.floor(rev or 40))
-  reaper.StuffMIDIMessage(0, 0xB0 | c, 93, math.floor(cho or 0))
-  reaper.StuffMIDIMessage(0, 0xB0 | c, 74, math.floor(cut or 64))
-  reaper.StuffMIDIMessage(0, 0xB0 | c, 71, math.floor(res or 64))
+  reaper.StuffMIDIMessage(output_mode, 0xB0 | c, 89, arp_sw and 127 or 0)
+  reaper.StuffMIDIMessage(output_mode, 0xB0 | c, 91, math.floor(rev or 40))
+  reaper.StuffMIDIMessage(output_mode, 0xB0 | c, 93, math.floor(cho or 0))
+  reaper.StuffMIDIMessage(output_mode, 0xB0 | c, 74, math.floor(cut or 64))
+  reaper.StuffMIDIMessage(output_mode, 0xB0 | c, 71, math.floor(res or 64))
 
   if arpeggio and arp_sw then
     local msb = (arpeggio.nr >> 7) & 0x7F
@@ -84,18 +86,20 @@ end
 
 -- Audition an extended Am chord (A2, E3, A3, C4, E4, G4, B4).
 function Driver.audition_am_chord(dev_id, channel)
+  if dev_id == nil then return end
   local c = (channel - 1) & 0x0F
+  local output_mode = 16 + dev_id
   local am_notes = { 45, 52, 57, 60, 64, 67, 71 }
 
   for _, note in ipairs(am_notes) do
-    reaper.StuffMIDIMessage(0, 0x90 | c, note, 90)
+    reaper.StuffMIDIMessage(output_mode, 0x90 | c, note, 90)
   end
 
   local t_start = reaper.time_precise()
   local function release()
     if reaper.time_precise() - t_start > 1.2 then
       for _, note in ipairs(am_notes) do
-        reaper.StuffMIDIMessage(0, 0x80 | c, note, 0)
+        reaper.StuffMIDIMessage(output_mode, 0x80 | c, note, 0)
       end
     else
       reaper.defer(release)

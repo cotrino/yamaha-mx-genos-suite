@@ -4,9 +4,8 @@ local LP = {}
 
 LP.scenes = {}
 
-function LP.process(Driver)
-  local retval, midi_msg, _, _ = reaper.MIDI_GetRecentInputEvent(0)
-  if retval == 0 or not midi_msg or #midi_msg < 3 then return end
+function LP.process(midi_msg, Driver, yamaha_output)
+  if not midi_msg or #midi_msg < 3 then return end
 
   local status = midi_msg:byte(1)
   local pad = midi_msg:byte(2)
@@ -24,10 +23,10 @@ function LP.process(Driver)
     elseif pad == 19 then LP.trigger_section("ENDING B")
 
     -- Row 3 (pads 32-35): main variations A-D.
-    elseif pad == 32 then LP.set_variation(1, Driver)
-    elseif pad == 33 then LP.set_variation(2, Driver)
-    elseif pad == 34 then LP.set_variation(3, Driver)
-    elseif pad == 35 then LP.set_variation(4, Driver)
+    elseif pad == 32 then LP.set_variation(1, Driver, yamaha_output)
+    elseif pad == 33 then LP.set_variation(2, Driver, yamaha_output)
+    elseif pad == 34 then LP.set_variation(3, Driver, yamaha_output)
+    elseif pad == 35 then LP.set_variation(4, Driver, yamaha_output)
 
     -- Row 4 (pads 48-49): Fill-In and Break.
     elseif pad == 48 then LP.trigger_section("FILL-IN")
@@ -36,18 +35,21 @@ function LP.process(Driver)
   end
 end
 
-function LP.set_variation(var_idx, Driver)
+function LP.set_variation(var_idx, Driver, yamaha_output)
   local track = reaper.GetSelectedTrack(0, 0)
   if not track then return end
 
   local hw_out = reaper.GetMediaTrackInfo_Value(track, "I_MIDIHWOUT")
-  local ch = (hw_out >= 0) and (((math.floor(hw_out) >> 5) & 0x0F) + 1) or 1
-  local dev_id = (hw_out >= 0) and (math.floor(hw_out) & 0x1F) or 0
+  local ch = (hw_out >= 0) and (math.floor(hw_out) & 0x1F) or 1
+  if ch < 1 or ch > 16 then ch = 1 end
+  local dev_id = yamaha_output or ((hw_out >= 0) and ((math.floor(hw_out) >> 5) & 0x1F) or nil)
 
   -- Select an arpeggio based on the variation.
   local arp_idx = var_idx * 10
   if Driver.arpeggios[arp_idx] then
-    Driver.send_full_state(dev_id, ch, nil, Driver.arpeggios[arp_idx], true, 40, 0, 64, 64)
+    if dev_id ~= nil then
+      Driver.send_full_state(dev_id, ch, nil, Driver.arpeggios[arp_idx], true, 40, 0, 64, 64)
+    end
   end
 end
 

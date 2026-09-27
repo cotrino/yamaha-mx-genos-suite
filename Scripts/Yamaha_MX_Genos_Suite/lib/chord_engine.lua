@@ -57,12 +57,4 @@ function Chords.analyze()
   end
 end
 
-function Chords.update()
-  -- Read the most recent MIDI input event from REAPER.
-  local retval, midi_msg, _, _ = reaper.MIDI_GetRecentInputEvent(0)
-  if retval > 0 and midi_msg and #midi_msg >= 3 then
-    Chords.process_note_event(midi_msg:byte(1), midi_msg:byte(2), midi_msg:byte(3))
-  end
-end
-
 return Chords

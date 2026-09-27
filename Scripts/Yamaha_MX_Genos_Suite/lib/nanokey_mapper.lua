@@ -2,9 +2,8 @@
 local reaper = reaper
 local NK = {}
 
-function NK.process(Driver)
-  local retval, midi_msg, _, _ = reaper.MIDI_GetRecentInputEvent(0)
-  if retval == 0 or not midi_msg or #midi_msg < 3 then return end
+function NK.process(midi_msg, Driver)
+  if not midi_msg or #midi_msg < 3 then return end
 
   local status = midi_msg:byte(1)
   local note = midi_msg:byte(2)

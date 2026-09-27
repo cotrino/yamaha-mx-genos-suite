@@ -50,8 +50,9 @@ The ReaPack package includes the Lua modules, both JSFX, the track template, the
 
 1. Open `Actions > Show action list...`.
 2. Search for `Yamaha MX Genos Inspector`, select it, and click **Run**.
-3. Click **Create Rig** in the Inspector to add the 16 MIDI channel tracks and their hardware outputs to the current project. It creates the layout from the included **Yamaha MX Genos Full Rig** template and prevents adding a duplicate master rig.
-4. Select a channel track before using the voice, arpeggio, or MIDI configuration controls. Optionally use **Add...** in the Action List to assign a shortcut or toolbar button.
+3. In the Inspector, select the Yamaha MX MIDI input and output, Launchpad input, and nanoKEY2 input from the detected device lists. These choices are remembered by device name and re-resolved if device indexes change.
+4. Click **Create Rig** to add the 16 MIDI channel tracks. Channels 1-15 record from the Yamaha MX, channel 16 records from the nanoKEY2, and each track sends its corresponding channel to the selected Yamaha MX output. The Inspector prevents adding a duplicate master rig.
+5. Select a channel track before using the voice, arpeggio, or MIDI configuration controls. Optionally use **Add...** in the Action List to assign a shortcut or toolbar button.
 
 The installed template is also available from `Insert > Track from template > Yamaha MX Genos Full Rig`.
 
@@ -73,7 +74,7 @@ The Inspector opens as a ReaImGui window. Drag its title bar to a REAPER Docker 
 ## 🎹 Hardware Setup
 
 1. **Yamaha MX88 / MX61 / MX49:** On the keyboard, choose `Utility > Job > Quick Setup > DAW Record`, then connect it to the computer over USB.
-2. **Novation Launchpad Mini and Korg NanoKey2:** Connect both controllers over USB. In REAPER, open `Preferences > Audio > MIDI Devices` and enable each controller for input and control messages.
+2. **Yamaha MX88 / MX61 / MX49, Novation Launchpad Mini, and Korg NanoKey2:** Connect the hardware over USB. In REAPER, open `Preferences > Audio > MIDI Devices`, enable all three devices as MIDI inputs, and enable the Yamaha MX as a MIDI output. Then choose the corresponding devices in the Inspector.
 
 ---
 
