@@ -28,12 +28,7 @@
 ## 📦 Instalación vía ReaPack
 
 1. Abre REAPER y navega a `Extensions > ReaPack > Import repositories...`.
-2. Introduce la URL del archivo `index.xml` de tu repositorio:
-   ```text
-   [https://raw.githubusercontent.com/cotrino/yamaha-mx-genos-suite/main/index.xml](https://raw.githubusercontent.com/cotrino/yamaha-mx-genos-suite/main/index.xml)
-
-```
-
+2. Introduce la URL del archivo `index.xml` de este repositorio: `https://raw.githubusercontent.com/cotrino/yamaha-mx-genos-suite/main/index.xml`
 3. Haz clic en **OK**, busca `Yamaha MX Genos Suite` en ReaPack e instálalo.
 
 ---
