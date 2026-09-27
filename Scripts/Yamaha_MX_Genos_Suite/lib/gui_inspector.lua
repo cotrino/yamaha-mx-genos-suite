@@ -1,3 +1,4 @@
+-- @noindex
 local reaper = reaper
 local GUI = {}
 
