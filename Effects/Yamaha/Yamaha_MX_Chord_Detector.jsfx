@@ -19,13 +19,13 @@ while (midirecv(ts, msg1, msg2, msg3)) (
 
   note = msg2;
   
-  // Si la nota cae dentro de la zona de división (Split)
+  // Check whether the note is inside the split range.
   (note >= slider1 && note <= slider2) ? (
     is_note_on ? (
-      slider3 = note % 12; // Actualizar nota raíz automáticamente
+      slider3 = note % 12; // Update the detected root.
     );
   );
 
-  // Pasatrazos MIDI continuo
+  // Pass MIDI through unchanged.
   midisend(ts, msg1, msg2, msg3);
 );

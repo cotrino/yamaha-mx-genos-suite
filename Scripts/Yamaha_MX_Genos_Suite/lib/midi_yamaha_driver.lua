@@ -6,9 +6,9 @@ Driver.programs = {}
 Driver.arpeggios = {}
 Driver.arp_cache = {}
 
--- Cargar y parsear archivos de parches y arpegios
+-- Load and parse the patch and arpeggio files.
 function Driver.init(reabank_path, csv_path)
-  -- 1. Parsear .reabank
+  -- Parse the ReaBank file.
   local f_bank = io.open(reabank_path, "r")
   if f_bank then
     local msb, lsb, bname = 0, 0, ""
@@ -34,7 +34,7 @@ function Driver.init(reabank_path, csv_path)
     f_bank:close()
   end
 
-  -- 2. Parsear .csv
+  -- Parse the arpeggio CSV file.
   local f_csv = io.open(csv_path, "r")
   if f_csv then
     local header = true
@@ -54,9 +54,11 @@ function Driver.init(reabank_path, csv_path)
     end
     f_csv:close()
   end
+
+  return #Driver.programs, #Driver.arpeggios
 end
 
--- Transmitir estado completo al sintetizador Yamaha MX
+-- Send the complete state to the Yamaha MX synthesizer.
 function Driver.send_full_state(dev_id, channel, program, arpeggio, arp_sw, rev, cho, cut, res)
   local c = (channel - 1) & 0x0F
 
@@ -80,7 +82,7 @@ function Driver.send_full_state(dev_id, channel, program, arpeggio, arp_sw, rev,
   end
 end
 
--- Audición en vivo con acorde Am extendido (A2, E3, A3, C4, E4, G4, B4)
+-- Audition an extended Am chord (A2, E3, A3, C4, E4, G4, B4).
 function Driver.audition_am_chord(dev_id, channel)
   local c = (channel - 1) & 0x0F
   local am_notes = { 45, 52, 57, 60, 64, 67, 71 }

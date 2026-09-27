@@ -11,7 +11,7 @@ function NK.process(Driver)
   local vel = midi_msg:byte(3)
 
   if (status & 0xF0) == 0x90 and vel > 0 then
-    -- Teclas C1 a D#2 (Notas 36 a 51): Selección directa de canales 1 a 16
+    -- C1-D#2 (notes 36-51): directly select MIDI channels 1-16.
     if note >= 36 and note <= 51 then
       local track_idx = note - 36
       local track = reaper.GetTrack(0, track_idx)
@@ -20,7 +20,7 @@ function NK.process(Driver)
         reaper.SetMediaTrackInfo_Value(track, "I_RECARM", 1)
       end
 
-    -- Tecla E2 (Nota 52): Mute de pista seleccionada
+    -- E2 (note 52): mute the selected track.
     elseif note == 52 then
       local track = reaper.GetSelectedTrack(0, 0)
       if track then
@@ -28,7 +28,7 @@ function NK.process(Driver)
         reaper.SetMediaTrackInfo_Value(track, "B_MUTE", cur_mute == 1 and 0 or 1)
       end
 
-    -- Tecla F2 (Nota 53): Solo de pista seleccionada
+    -- F2 (note 53): solo the selected track.
     elseif note == 53 then
       local track = reaper.GetSelectedTrack(0, 0)
       if track then
@@ -36,7 +36,7 @@ function NK.process(Driver)
         reaper.SetMediaTrackInfo_Value(track, "I_SOLO", cur_solo > 0 and 0 or 1)
       end
 
-    -- Tecla F#2 (Nota 54) / G2 (Nota 55): Bajar / Subir Volumen (-1dB / +1dB)
+    -- F#2/G2 (notes 54/55): decrease/increase volume by 1 dB.
     elseif note == 54 or note == 55 then
       local track = reaper.GetSelectedTrack(0, 0)
       if track then

@@ -15,7 +15,61 @@ local search_prg = ""
 local search_arp = ""
 local last_cursor_pos = -1
 
--- Buscar item MIDI de configuración en el cursor
+local rig_track_names = {
+  "Ch 01 - AP: Concert Grand",
+  "Ch 02 - EP: Tine Vintage",
+  "Ch 03 - EP: Reed Classic",
+  "Ch 04 - Organ: Tonewheel",
+  "Ch 05 - Str: Full Orchestra",
+  "Ch 06 - Brass: Ensemble",
+  "Ch 07 - Syn: Lead",
+  "Ch 08 - Syn: Pad / Choir",
+  "Ch 09 - Gtr: Steel Acoustic",
+  "Ch 10 - Drum: Stereo Kit",
+  "Ch 11 - Bass: Electric",
+  "Ch 12 - Clav / Mallet",
+  "Ch 13 - Ethnic / World",
+  "Ch 14 - Sound FX / Perc",
+  "Ch 15 - User Part 1",
+  "Ch 16 - Auxiliary (NanoKey2)"
+}
+
+local function create_rig()
+  for i = 0, reaper.CountTracks(0) - 1 do
+    local _, name = reaper.GetTrackName(reaper.GetTrack(0, i))
+    if name == "YAMAHA MX (MASTER RIG)" then
+      reaper.ShowMessageBox("A Yamaha MX rig already exists in this project.", "Rig already exists", 0)
+      return
+    end
+  end
+
+  local master_index = reaper.CountTracks(0)
+  reaper.Undo_BeginBlock()
+  reaper.InsertTrackAtIndex(master_index, true)
+
+  local master_track = reaper.GetTrack(0, master_index)
+  reaper.GetSetMediaTrackInfo_String(master_track, "P_NAME", "YAMAHA MX (MASTER RIG)", true)
+  reaper.SetMediaTrackInfo_Value(master_track, "I_FOLDERDEPTH", 1)
+
+  for channel, name in ipairs(rig_track_names) do
+    local track_index = reaper.CountTracks(0)
+    reaper.InsertTrackAtIndex(track_index, true)
+
+    local track = reaper.GetTrack(0, track_index)
+    reaper.GetSetMediaTrackInfo_String(track, "P_NAME", name, true)
+    reaper.SetMediaTrackInfo_Value(track, "I_FOLDERDEPTH", channel == #rig_track_names and -1 or 0)
+    reaper.SetMediaTrackInfo_Value(track, "I_RECARM", 1)
+    reaper.SetMediaTrackInfo_Value(track, "I_RECINPUT", 4127)
+    reaper.SetMediaTrackInfo_Value(track, "I_MIDIHWOUT", (channel - 1) * 32)
+  end
+
+  reaper.SetOnlyTrackSelected(reaper.GetTrack(0, master_index + 1))
+  reaper.TrackList_AdjustWindows(false)
+  reaper.UpdateArrange()
+  reaper.Undo_EndBlock("Create Yamaha MX Genos Rig", -1)
+end
+
+-- Find the MIDI configuration item at the edit cursor.
 local function find_config_item(track)
   if not track then return nil end
   local pos = reaper.GetCursorPosition()
@@ -31,7 +85,7 @@ local function find_config_item(track)
   return nil
 end
 
--- Insertar o Reemplazar bloque MIDI
+-- Insert or replace the MIDI configuration block.
 local function insert_or_replace_midi(Driver, track, ch)
   if not track then return end
 
@@ -74,18 +128,18 @@ local function insert_or_replace_midi(Driver, track, ch)
   local iname = string.format("[MX Config] %s | Arp %s", prg and prg.name or "Voice", arp_sw and (arp and arp.name or "ON") or "OFF")
   reaper.GetSetMediaItemTakeInfo_String(take, "P_NAME", iname, true)
 
-  reaper.Undo_EndBlock("Config MIDI Yamaha MX", -1)
+  reaper.Undo_EndBlock("Configure Yamaha MX MIDI", -1)
   reaper.UpdateArrange()
 end
 
 function GUI.render(Driver, Chords, LP)
   local track = reaper.GetSelectedTrack(0, 0)
-  local track_name = "Sin pista seleccionada"
+  local track_name = "No track selected"
   local ch, dev_id = 1, 0
 
   if track then
     local _, tname = reaper.GetTrackName(track)
-    track_name = (tname ~= "") and tname or "Pista Activa"
+    track_name = (tname ~= "") and tname or "Active track"
     local hw = reaper.GetMediaTrackInfo_Value(track, "I_MIDIHWOUT")
     if hw >= 0 then
       dev_id = math.floor(hw) & 0x1F
@@ -97,25 +151,29 @@ function GUI.render(Driver, Chords, LP)
   local visible, open = reaper.ImGui_Begin(ctx, 'Yamaha MX Genos Inspector', true)
 
   if visible then
-    -- Header & Acorde Detectado
+    -- Header and detected chord.
     reaper.ImGui_TextColored(ctx, 0xFFA200FF, "YAMAHA MX GENOS INSPECTOR")
     reaper.ImGui_SameLine(ctx)
     reaper.ImGui_TextColored(ctx, 0x00E5FFFF, string.format("[%s: %s %s]", track_name, Chords.current_root, Chords.current_type))
 
+    if reaper.ImGui_Button(ctx, "Create Rig") then
+      create_rig()
+    end
+
     reaper.ImGui_Separator(ctx)
     reaper.ImGui_Spacing(ctx)
 
-    -- Controles HW CC
+    -- Hardware controls.
     local s_chg, n_sw = reaper.ImGui_Checkbox(ctx, "Arpeggiator (CC89)", arp_sw)
     if s_chg then arp_sw = n_sw; Driver.audition_am_chord(dev_id, ch) end
 
     reaper.ImGui_SameLine(ctx)
-    if reaper.ImGui_Button(ctx, "Probar Acorde Am") then
+    if reaper.ImGui_Button(ctx, "Audition Am Chord") then
       Driver.send_full_state(dev_id, ch, Driver.programs[selected_prg_idx], Driver.arpeggios[selected_arp_idx], arp_sw, rev_val, cho_val, cut_val, res_val)
       Driver.audition_am_chord(dev_id, ch)
     end
 
-    -- Sliders CC
+    -- CC sliders.
     reaper.ImGui_SetNextItemWidth(ctx, 180)
     local r_c, n_r = reaper.ImGui_SliderInt(ctx, "Reverb (CC91)", rev_val, 0, 127)
     if r_c then rev_val = n_r end
@@ -137,12 +195,12 @@ function GUI.render(Driver, Chords, LP)
     reaper.ImGui_Spacing(ctx)
     reaper.ImGui_Separator(ctx)
 
-    -- Pestañas
+    -- Tabs.
     if reaper.ImGui_BeginTabBar(ctx, "Tabs") then
-      -- Tab 1: Voces
-      if reaper.ImGui_BeginTabItem(ctx, "Voces") then
+      -- Voices tab.
+      if reaper.ImGui_BeginTabItem(ctx, "Voices") then
         reaper.ImGui_SetNextItemWidth(ctx, -1)
-        _, search_prg = reaper.ImGui_InputTextWithHint(ctx, "##pfilt", "Buscar voz...", search_prg)
+        _, search_prg = reaper.ImGui_InputTextWithHint(ctx, "##pfilt", "Search voices...", search_prg)
         if reaper.ImGui_BeginListBox(ctx, "##plist", -1, 160) then
           for i, p in ipairs(Driver.programs) do
             if search_prg == "" or p.desc:lower():find(search_prg:lower(), 1, true) then
@@ -158,10 +216,10 @@ function GUI.render(Driver, Chords, LP)
         reaper.ImGui_EndTabItem(ctx)
       end
 
-      -- Tab 2: Arpegios
-      if reaper.ImGui_BeginTabItem(ctx, "Arpegios HW") then
+      -- Hardware arpeggios tab.
+      if reaper.ImGui_BeginTabItem(ctx, "Hardware Arpeggios") then
         reaper.ImGui_SetNextItemWidth(ctx, -1)
-        _, search_arp = reaper.ImGui_InputTextWithHint(ctx, "##afilt", "Buscar arpegio...", search_arp)
+        _, search_arp = reaper.ImGui_InputTextWithHint(ctx, "##afilt", "Search arpeggios...", search_arp)
         if reaper.ImGui_BeginListBox(ctx, "##alist", -1, 160) then
           for i, a in ipairs(Driver.arpeggios) do
             if search_arp == "" or a.desc:lower():find(search_arp:lower(), 1, true) then
@@ -183,9 +241,9 @@ function GUI.render(Driver, Chords, LP)
     reaper.ImGui_Spacing(ctx)
     reaper.ImGui_Separator(ctx)
 
-    -- Botón de Acción Principal
+    -- Main action button.
     local existing, _ = find_config_item(track)
-    local lbl = existing and "REEMPLAZAR BLOQUE CONFIG MIDI" or "INSERTAR BLOQUE CONFIG MIDI (EN CURSOR)"
+    local lbl = existing and "REPLACE MIDI CONFIG BLOCK" or "INSERT MIDI CONFIG AT EDIT CURSOR"
     
     if existing then
       reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Button(), 0xCC8800FF)

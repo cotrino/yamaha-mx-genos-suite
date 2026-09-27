@@ -18,7 +18,7 @@ slider10:1<1,999,1>Arp Pattern HW (1-999)
 ext_no_auto_seek = 1;
 
 @slider
-ch = 0; // Canal MIDI 1 (0-15)
+ch = 0; // MIDI channel 1 (0-15).
 
 // 1. Bank Select & Program Change
 midisend(0, $xB0 | ch, 0, slider1);
@@ -33,7 +33,7 @@ midisend(0, $xB0 | ch, 93, slider7);
 midisend(0, $xB0 | ch, 74, slider8);
 midisend(0, $xB0 | ch, 71, slider9);
 
-// 3. SysEx Arpegio Hardware Yamaha MX
+// 3. Yamaha MX hardware arpeggio SysEx.
 arp_num = slider10;
 msb = (arp_num >> 7) & 127;
 lsb = arp_num & 127;
