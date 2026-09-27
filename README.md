@@ -1,10 +1,3 @@
-Aquí tienes el contenido completo del archivo **`README.md`** y de la plantilla de pista **`Yamaha_MX_Genos_Full_Rig.RTrackTemplate`**, junto con las instrucciones detalladas para obtener y ejecutar **`reapack-index`**.
-
----
-
-### 1. `README.md`
-
-```markdown
 # Yamaha MX Genos-Style Arranger Suite
 
 **Yamaha MX Genos-Style Arranger Suite** es un ecosistema modular para REAPER que transforma cualquier sintetizador de la serie **Yamaha MX (MX88 / MX61 / MX49)** en una estación de trabajo de arreglista en tiempo real estilo **Yamaha Genos 2 / Tyros**, integrado con un **Novation Launchpad Mini** y un **Korg NanoKey2**.
