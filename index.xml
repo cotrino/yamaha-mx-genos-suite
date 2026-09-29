@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Yamaha MX88 Genos Full Rig" commit="1ffed2fc8a542ae9fe0f6838a1f4f10bb414573d">
+<index version="1" name="Yamaha MX88 Genos Full Rig" commit="3427212df46172ea9092fe2fe93429ddea75a460">
   <category name="Scripts/Yamaha_MX_Genos_Suite">
     <reapack name="Yamaha_MX_Genos_Inspector.lua" type="script" desc="Yamaha MX Genos-Style Arranger Suite">
       <metadata>
@@ -89,6 +89,19 @@
         <source file="lib/launchpad_mapper.lua">https://github.com/cotrino/yamaha-mx-genos-suite/raw/1ffed2fc8a542ae9fe0f6838a1f4f10bb414573d/Scripts/Yamaha_MX_Genos_Suite/lib/launchpad_mapper.lua</source>
         <source file="lib/midi_yamaha_driver.lua">https://github.com/cotrino/yamaha-mx-genos-suite/raw/1ffed2fc8a542ae9fe0f6838a1f4f10bb414573d/Scripts/Yamaha_MX_Genos_Suite/lib/midi_yamaha_driver.lua</source>
         <source file="lib/nanokey_mapper.lua">https://github.com/cotrino/yamaha-mx-genos-suite/raw/1ffed2fc8a542ae9fe0f6838a1f4f10bb414573d/Scripts/Yamaha_MX_Genos_Suite/lib/nanokey_mapper.lua</source>
+      </version>
+      <version name="1.0.7" author="José M. Cotrino" time="2026-09-29T20:55:30Z">
+        <source main="main">https://github.com/cotrino/yamaha-mx-genos-suite/raw/3427212df46172ea9092fe2fe93429ddea75a460/Scripts/Yamaha_MX_Genos_Suite/Yamaha_MX_Genos_Inspector.lua</source>
+        <source file="../Effects/Yamaha/Yamaha_MX_Chord_Detector.jsfx">https://github.com/cotrino/yamaha-mx-genos-suite/raw/3427212df46172ea9092fe2fe93429ddea75a460/Effects/Yamaha/Yamaha_MX_Chord_Detector.jsfx</source>
+        <source file="../Effects/Yamaha/Yamaha_MX_Control.jsfx">https://github.com/cotrino/yamaha-mx-genos-suite/raw/3427212df46172ea9092fe2fe93429ddea75a460/Effects/Yamaha/Yamaha_MX_Control.jsfx</source>
+        <source file="../TrackTemplates/Yamaha_MX_Genos_Full_Rig.RTrackTemplate">https://github.com/cotrino/yamaha-mx-genos-suite/raw/3427212df46172ea9092fe2fe93429ddea75a460/TrackTemplates/Yamaha_MX_Genos_Full_Rig.RTrackTemplate</source>
+        <source file="data/Yamaha_MX49.reabank">https://github.com/cotrino/yamaha-mx-genos-suite/raw/3427212df46172ea9092fe2fe93429ddea75a460/Scripts/Yamaha_MX_Genos_Suite/data/Yamaha_MX49.reabank</source>
+        <source file="data/Yamaha_MX88_Arpeggios.csv">https://github.com/cotrino/yamaha-mx-genos-suite/raw/3427212df46172ea9092fe2fe93429ddea75a460/Scripts/Yamaha_MX_Genos_Suite/data/Yamaha_MX88_Arpeggios.csv</source>
+        <source file="lib/chord_engine.lua">https://github.com/cotrino/yamaha-mx-genos-suite/raw/3427212df46172ea9092fe2fe93429ddea75a460/Scripts/Yamaha_MX_Genos_Suite/lib/chord_engine.lua</source>
+        <source file="lib/gui_inspector.lua">https://github.com/cotrino/yamaha-mx-genos-suite/raw/3427212df46172ea9092fe2fe93429ddea75a460/Scripts/Yamaha_MX_Genos_Suite/lib/gui_inspector.lua</source>
+        <source file="lib/launchpad_mapper.lua">https://github.com/cotrino/yamaha-mx-genos-suite/raw/3427212df46172ea9092fe2fe93429ddea75a460/Scripts/Yamaha_MX_Genos_Suite/lib/launchpad_mapper.lua</source>
+        <source file="lib/midi_yamaha_driver.lua">https://github.com/cotrino/yamaha-mx-genos-suite/raw/3427212df46172ea9092fe2fe93429ddea75a460/Scripts/Yamaha_MX_Genos_Suite/lib/midi_yamaha_driver.lua</source>
+        <source file="lib/nanokey_mapper.lua">https://github.com/cotrino/yamaha-mx-genos-suite/raw/3427212df46172ea9092fe2fe93429ddea75a460/Scripts/Yamaha_MX_Genos_Suite/lib/nanokey_mapper.lua</source>
       </version>
     </reapack>
   </category>
