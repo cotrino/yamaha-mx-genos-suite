@@ -13,7 +13,10 @@ local res_val = 64
 
 local search_prg = ""
 local search_arp = ""
-local last_cursor_pos = -1
+local last_config_track = nil
+local last_config_item = nil
+local last_config_channel = nil
+local last_config_hash = nil
 local settings_section = "Yamaha MX Genos Inspector"
 local device_config = {
   yamaha_input_name = reaper.GetExtState(settings_section, "yamaha_input"),
@@ -194,6 +197,88 @@ local function find_config_item(track)
   return nil
 end
 
+local function find_program_index(Driver, msb, lsb, program_number)
+  if msb == nil or lsb == nil or program_number == nil then return nil end
+  for i, program in ipairs(Driver.programs) do
+    if program.msb == msb and program.lsb == lsb and program.prg == program_number then
+      return i
+    end
+  end
+  return nil
+end
+
+local function find_arpeggio_index(Driver, arpeggio_number)
+  if arpeggio_number == nil then return nil end
+  for i, arpeggio in ipairs(Driver.arpeggios) do
+    if arpeggio.nr == arpeggio_number then return i end
+  end
+  return nil
+end
+
+local function sync_selection_from_config(Driver, track, channel)
+  if not track or not channel then return end
+  local item, take = find_config_item(track)
+  local hash
+  if take then
+    _, hash = reaper.MIDI_GetHash(take, false)
+  end
+
+  if track == last_config_track and item == last_config_item and channel == last_config_channel and hash == last_config_hash then
+    return
+  end
+  last_config_track = track
+  last_config_item = item
+  last_config_channel = channel
+  last_config_hash = hash
+  if not take then return end
+
+  local target_channel = (channel - 1) & 0x0F
+  local bank_msb, bank_lsb, program_number
+  local detected_arp_switch
+  local detected_arpeggio
+  local _, _, cc_count, text_count = reaper.MIDI_CountEvts(take)
+
+  for i = 0, cc_count - 1 do
+    local ok, _, _, _, chanmsg, event_channel, msg2, msg3 = reaper.MIDI_GetCC(take, i)
+    if ok and event_channel == target_channel then
+      if chanmsg == 0xB0 and msg2 == 0 then
+        bank_msb = msg3
+      elseif chanmsg == 0xB0 and msg2 == 32 then
+        bank_lsb = msg3
+      elseif chanmsg == 0xC0 then
+        program_number = msg2
+      elseif chanmsg == 0xB0 and msg2 == 89 then
+        detected_arp_switch = msg3 >= 64
+      end
+    end
+  end
+
+  local program_index = find_program_index(Driver, bank_msb, bank_lsb, program_number)
+  if program_index then selected_prg_idx = program_index end
+
+  for i = 0, text_count - 1 do
+    local ok, _, _, _, event_type, message = reaper.MIDI_GetTextSysexEvt(take, i)
+    if ok and event_type == -1 and #message >= 8 then
+      if message:byte(1) == 0x43 and message:byte(2) == 0x10 and
+          message:byte(3) == 0x7F and message:byte(4) == 0x17 and
+          message:byte(6) == target_channel then
+        local address = message:byte(5)
+        local offset = message:byte(7)
+        if address == 0x36 and offset == 0x02 and message:byte(8) == 0x01 and #message >= 10 then
+          local msb, lsb = message:byte(9, 10)
+          detected_arpeggio = (msb << 7) | lsb
+        elseif address == 0x38 and offset == 0x00 then
+          detected_arp_switch = message:byte(8) == 0x01
+        end
+      end
+    end
+  end
+
+  local arpeggio_index = find_arpeggio_index(Driver, detected_arpeggio)
+  if arpeggio_index then selected_arp_idx = arpeggio_index end
+  if detected_arp_switch ~= nil then arp_sw = detected_arp_switch end
+end
+
 -- Insert or replace the MIDI configuration block.
 local function insert_or_replace_midi(Driver, track, ch)
   if not track then return end
@@ -227,7 +312,7 @@ local function insert_or_replace_midi(Driver, track, ch)
   reaper.MIDI_InsertCC(take, false, false, 6, 0xB0, c, 74, cut_val)
   reaper.MIDI_InsertCC(take, false, false, 7, 0xB0, c, 71, res_val)
 
-  if arp and arp_sw then
+  if arp then
     local msb = (arp.nr >> 7) & 0x7F
     local lsb = arp.nr & 0x7F
     local sysex = string.char(0x43, 0x10, 0x7F, 0x17, 0x36, c, 0x02, 0x01, msb, lsb)
@@ -248,6 +333,7 @@ function GUI.render(Driver, Chords, LP, devices)
   local track_name = "No track selected"
   local ch, dev_id = 1, devices.yamaha_output
   local can_send = false
+  local valid_hardware_channel = false
 
   if track then
     local _, tname = reaper.GetTrackName(track)
@@ -255,12 +341,14 @@ function GUI.render(Driver, Chords, LP, devices)
     local hw = reaper.GetMediaTrackInfo_Value(track, "I_MIDIHWOUT")
     if hw >= 0 then
       local output_channel = math.floor(hw) & 0x1F
-      if output_channel >= 1 and output_channel <= 16 and dev_id ~= nil then
+      if output_channel >= 1 and output_channel <= 16 then
         ch = output_channel
-        can_send = true
+        valid_hardware_channel = true
+        can_send = dev_id ~= nil
       end
     end
   end
+  sync_selection_from_config(Driver, track, valid_hardware_channel and ch or nil)
 
   reaper.ImGui_SetNextWindowSize(ctx, 760, 760, reaper.ImGui_Cond_FirstUseEver())
   local visible, open = reaper.ImGui_Begin(ctx, 'Yamaha MX Genos Inspector', true)
