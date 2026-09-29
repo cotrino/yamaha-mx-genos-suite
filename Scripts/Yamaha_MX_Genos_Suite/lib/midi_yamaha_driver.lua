@@ -80,7 +80,7 @@ function Driver.send_full_state(dev_id, channel, program, arpeggio, arp_sw, rev,
     local msb = (arpeggio.nr >> 7) & 0x7F
     local lsb = arpeggio.nr & 0x7F
     local sysex = string.char(0xF0, 0x43, 0x10, 0x7F, 0x1C, 0x36, c, 0x02, 0x01, msb, lsb, 0xF7)
-    reaper.SendMIDIOutMessage(dev_id, sysex)
+    reaper.SendMIDIMessageToHardware(dev_id, sysex, #sysex)
   end
 end
 

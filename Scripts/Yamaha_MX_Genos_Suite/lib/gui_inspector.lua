@@ -260,7 +260,7 @@ function GUI.render(Driver, Chords, LP, devices)
     end
   end
 
-  reaper.ImGui_SetNextWindowSize(ctx, 540, 760, reaper.ImGui_Cond_FirstUseEver())
+  reaper.ImGui_SetNextWindowSize(ctx, 760, 760, reaper.ImGui_Cond_FirstUseEver())
   local visible, open = reaper.ImGui_Begin(ctx, 'Yamaha MX Genos Inspector', true)
 
   if visible then
