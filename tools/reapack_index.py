@@ -82,9 +82,9 @@ def tracked_paths(commit: str) -> list[str]:
     return [path.decode("utf-8") for path in data.split(b"\0") if path]
 
 
-def expand_provides(manifest: dict, paths: list[str]) -> tuple[str, list[str]]:
+def expand_provides(manifest: dict, paths: list[str]) -> tuple[str, list[tuple[str, str]]]:
     main_path = MAIN_SCRIPT
-    files: set[str] = set()
+    files: dict[str, str] = {}
     for rule in manifest["provides"]:
         main_match = re.match(r"^\[main\]\s+(.+)$", rule)
         if main_match:
@@ -113,9 +113,9 @@ def expand_provides(manifest: dict, paths: list[str]) -> tuple[str, list[str]]:
                 package_path = (dest / PurePosixPath(source).name).as_posix()
             else:
                 package_path = PurePosixPath(os.path.relpath(source, ROOT.as_posix()).replace("\\", "/")).as_posix()
-            files.add(package_path)
+            files[package_path] = source
 
-    return main_path, sorted(files)
+    return main_path, sorted(files.items())
 
 
 def raw_url(remote: str, commit: str, path: str) -> str:
@@ -188,9 +188,9 @@ def build_index() -> bytes:
         version = ET.SubElement(package, "version", {"name": manifest["version"], "author": manifest.get("author", author), "time": time})
         source = ET.SubElement(version, "source", {"main": "main"})
         source.text = raw_url(remote, commit, main_path)
-        for path in payload:
-            element = ET.SubElement(version, "source", {"file": path})
-            element.text = raw_url(remote, commit, path)
+        for package_path, source_path in payload:
+            element = ET.SubElement(version, "source", {"file": package_path})
+            element.text = raw_url(remote, commit, source_path)
         latest_commit = commit
 
     output.set("commit", latest_commit)
