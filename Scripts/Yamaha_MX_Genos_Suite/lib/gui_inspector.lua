@@ -230,9 +230,11 @@ local function insert_or_replace_midi(Driver, track, ch)
   if arp and arp_sw then
     local msb = (arp.nr >> 7) & 0x7F
     local lsb = arp.nr & 0x7F
-    local sysex = string.char(0xF0, 0x43, 0x10, 0x7F, 0x1C, 0x36, c, 0x02, 0x01, msb, lsb, 0xF7)
+    local sysex = string.char(0x43, 0x10, 0x7F, 0x17, 0x36, c, 0x02, 0x01, msb, lsb)
     reaper.MIDI_InsertTextSysexEvt(take, false, false, 8, -1, sysex)
   end
+  local arp_switch = string.char(0x43, 0x10, 0x7F, 0x17, 0x38, c, 0x00, arp_sw and 0x01 or 0x00)
+  reaper.MIDI_InsertTextSysexEvt(take, false, false, 9, -1, arp_switch)
 
   local iname = string.format("[MX Config] %s | Arp %s", prg and prg.name or "Voice", arp_sw and (arp and arp.name or "ON") or "OFF")
   reaper.GetSetMediaItemTakeInfo_String(take, "P_NAME", iname, true)
@@ -294,8 +296,12 @@ function GUI.render(Driver, Chords, LP, devices)
 
     if can_send then
       -- Hardware controls.
-      local s_chg, n_sw = reaper.ImGui_Checkbox(ctx, "Arpeggiator (CC89)", arp_sw)
-      if s_chg then arp_sw = n_sw; Driver.audition_am_chord(dev_id, ch) end
+      local s_chg, n_sw = reaper.ImGui_Checkbox(ctx, "Arpeggiator", arp_sw)
+      if s_chg then
+        arp_sw = n_sw
+        Driver.send_full_state(dev_id, ch, nil, Driver.arpeggios[selected_arp_idx], arp_sw, rev_val, cho_val, cut_val, res_val)
+        Driver.audition_am_chord(dev_id, ch)
+      end
 
       reaper.ImGui_SameLine(ctx)
       if reaper.ImGui_Button(ctx, "Audition Am Chord") then
@@ -325,47 +331,43 @@ function GUI.render(Driver, Chords, LP, devices)
       reaper.ImGui_Spacing(ctx)
       reaper.ImGui_Separator(ctx)
 
-      -- Tabs.
-      if reaper.ImGui_BeginTabBar(ctx, "Tabs") then
-        -- Voices tab.
-        if reaper.ImGui_BeginTabItem(ctx, "Voices") then
-          reaper.ImGui_SetNextItemWidth(ctx, -1)
-          _, search_prg = reaper.ImGui_InputTextWithHint(ctx, "##pfilt", "Search voices...", search_prg)
-          if reaper.ImGui_BeginListBox(ctx, "##plist", -1, 160) then
-            for i, p in ipairs(Driver.programs) do
-              if search_prg == "" or p.desc:lower():find(search_prg:lower(), 1, true) then
-                if reaper.ImGui_Selectable(ctx, p.desc, selected_prg_idx == i) then
-                  selected_prg_idx = i
-                  Driver.send_full_state(dev_id, ch, p, Driver.arpeggios[selected_arp_idx], arp_sw, rev_val, cho_val, cut_val, res_val)
-                  Driver.audition_am_chord(dev_id, ch)
-                end
+      if reaper.ImGui_BeginTable(ctx, "##selectors", 2, reaper.ImGui_TableFlags_SizingStretchSame()) then
+        reaper.ImGui_TableNextRow(ctx)
+        reaper.ImGui_TableSetColumnIndex(ctx, 0)
+        reaper.ImGui_Text(ctx, "Voices")
+        reaper.ImGui_SetNextItemWidth(ctx, -1)
+        _, search_prg = reaper.ImGui_InputTextWithHint(ctx, "##pfilt", "Search voices...", search_prg)
+        if reaper.ImGui_BeginListBox(ctx, "##plist", -1, 200) then
+          for i, p in ipairs(Driver.programs) do
+            if search_prg == "" or p.desc:lower():find(search_prg:lower(), 1, true) then
+              if reaper.ImGui_Selectable(ctx, p.desc, selected_prg_idx == i) then
+                selected_prg_idx = i
+                Driver.send_full_state(dev_id, ch, p, Driver.arpeggios[selected_arp_idx], arp_sw, rev_val, cho_val, cut_val, res_val)
+                Driver.audition_am_chord(dev_id, ch)
               end
             end
-            reaper.ImGui_EndListBox(ctx)
           end
-          reaper.ImGui_EndTabItem(ctx)
+          reaper.ImGui_EndListBox(ctx)
         end
 
-        -- Hardware arpeggios tab.
-        if reaper.ImGui_BeginTabItem(ctx, "Hardware Arpeggios") then
-          reaper.ImGui_SetNextItemWidth(ctx, -1)
-          _, search_arp = reaper.ImGui_InputTextWithHint(ctx, "##afilt", "Search arpeggios...", search_arp)
-          if reaper.ImGui_BeginListBox(ctx, "##alist", -1, 160) then
-            for i, a in ipairs(Driver.arpeggios) do
-              if search_arp == "" or a.desc:lower():find(search_arp:lower(), 1, true) then
-                if reaper.ImGui_Selectable(ctx, a.desc, selected_arp_idx == i) then
-                  selected_arp_idx = i
-                  Driver.send_full_state(dev_id, ch, Driver.programs[selected_prg_idx], a, arp_sw, rev_val, cho_val, cut_val, res_val)
-                  Driver.audition_am_chord(dev_id, ch)
-                end
+        reaper.ImGui_TableSetColumnIndex(ctx, 1)
+        reaper.ImGui_Text(ctx, "Arpeggios")
+        reaper.ImGui_SetNextItemWidth(ctx, -1)
+        _, search_arp = reaper.ImGui_InputTextWithHint(ctx, "##afilt", "Search arpeggios...", search_arp)
+        if reaper.ImGui_BeginListBox(ctx, "##alist", -1, 200) then
+          for i, a in ipairs(Driver.arpeggios) do
+            if search_arp == "" or a.desc:lower():find(search_arp:lower(), 1, true) then
+              if reaper.ImGui_Selectable(ctx, a.desc, selected_arp_idx == i) then
+                selected_arp_idx = i
+                Driver.send_full_state(dev_id, ch, Driver.programs[selected_prg_idx], a, arp_sw, rev_val, cho_val, cut_val, res_val)
+                Driver.audition_am_chord(dev_id, ch)
               end
             end
-            reaper.ImGui_EndListBox(ctx)
           end
-          reaper.ImGui_EndTabItem(ctx)
+          reaper.ImGui_EndListBox(ctx)
         end
 
-        reaper.ImGui_EndTabBar(ctx)
+        reaper.ImGui_EndTable(ctx)
       end
 
       reaper.ImGui_Spacing(ctx)

@@ -34,6 +34,15 @@ function Driver.init(reabank_path, csv_path)
     f_bank:close()
   end
 
+  table.sort(Driver.programs, function(a, b)
+    local a_name = a.name:lower()
+    local b_name = b.name:lower()
+    if a_name ~= b_name then return a_name < b_name end
+    if a.msb ~= b.msb then return a.msb < b.msb end
+    if a.lsb ~= b.lsb then return a.lsb < b.lsb end
+    return a.prg < b.prg
+  end)
+
   -- Parse the arpeggio CSV file.
   local f_csv = io.open(csv_path, "r")
   if f_csv then
@@ -76,10 +85,13 @@ function Driver.send_full_state(dev_id, channel, program, arpeggio, arp_sw, rev,
   reaper.StuffMIDIMessage(output_mode, 0xB0 | c, 74, math.floor(cut or 64))
   reaper.StuffMIDIMessage(output_mode, 0xB0 | c, 71, math.floor(res or 64))
 
+  local arp_switch = string.char(0xF0, 0x43, 0x10, 0x7F, 0x17, 0x38, c, 0x00, arp_sw and 0x01 or 0x00, 0xF7)
+  reaper.SendMIDIMessageToHardware(dev_id, arp_switch, #arp_switch)
+
   if arpeggio and arp_sw then
     local msb = (arpeggio.nr >> 7) & 0x7F
     local lsb = arpeggio.nr & 0x7F
-    local sysex = string.char(0xF0, 0x43, 0x10, 0x7F, 0x1C, 0x36, c, 0x02, 0x01, msb, lsb, 0xF7)
+    local sysex = string.char(0xF0, 0x43, 0x10, 0x7F, 0x17, 0x36, c, 0x02, 0x01, msb, lsb, 0xF7)
     reaper.SendMIDIMessageToHardware(dev_id, sysex, #sysex)
   end
 end
