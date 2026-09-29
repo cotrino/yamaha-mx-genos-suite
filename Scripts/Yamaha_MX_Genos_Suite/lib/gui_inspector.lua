@@ -14,10 +14,12 @@ local res_val = 64
 local search_prg = ""
 local search_arp = ""
 local last_config_track = nil
-local last_config_item = nil
 local last_config_channel = nil
 local last_config_hash = nil
+local last_config_time = nil
 local settings_section = "Yamaha MX Genos Inspector"
+local window_size_key = "window_size_v1_0_8"
+local resize_window_on_start = reaper.GetExtState(settings_section, window_size_key) ~= "1"
 local device_config = {
   yamaha_input_name = reaper.GetExtState(settings_section, "yamaha_input"),
   launchpad_input_name = reaper.GetExtState(settings_section, "launchpad_input"),
@@ -217,66 +219,84 @@ end
 
 local function sync_selection_from_config(Driver, track, channel)
   if not track or not channel then return end
-  local item, take = find_config_item(track)
-  local hash
-  if take then
-    _, hash = reaper.MIDI_GetHash(take, false)
-  end
-
-  if track == last_config_track and item == last_config_item and channel == last_config_channel and hash == last_config_hash then
+  local cursor_time = reaper.GetCursorPosition()
+  local _, hash = reaper.MIDI_GetTrackHash(track, false)
+  if track == last_config_track and channel == last_config_channel and
+      cursor_time == last_config_time and hash == last_config_hash then
     return
   end
   last_config_track = track
-  last_config_item = item
   last_config_channel = channel
   last_config_hash = hash
-  if not take then return end
+  last_config_time = cursor_time
 
   local target_channel = (channel - 1) & 0x0F
-  local bank_msb, bank_lsb, program_number
-  local detected_arp_switch
-  local detected_arpeggio
-  local _, _, cc_count, text_count = reaper.MIDI_CountEvts(take)
-
-  for i = 0, cc_count - 1 do
-    local ok, _, _, _, chanmsg, event_channel, msg2, msg3 = reaper.MIDI_GetCC(take, i)
-    if ok and event_channel == target_channel then
-      if chanmsg == 0xB0 and msg2 == 0 then
-        bank_msb = msg3
-      elseif chanmsg == 0xB0 and msg2 == 32 then
-        bank_lsb = msg3
-      elseif chanmsg == 0xC0 then
-        program_number = msg2
-      elseif chanmsg == 0xB0 and msg2 == 89 then
-        detected_arp_switch = msg3 >= 64
+  local events = {}
+  local event_order = 0
+  for item_index = 0, reaper.CountTrackMediaItems(track) - 1 do
+    local item = reaper.GetTrackMediaItem(track, item_index)
+    local take = reaper.GetActiveTake(item)
+    if take and reaper.TakeIsMIDI(take) then
+      local _, _, cc_count, text_count = reaper.MIDI_CountEvts(take)
+      for event_index = 0, cc_count - 1 do
+        local ok, _, _, ppqpos, chanmsg, event_channel, msg2, msg3 = reaper.MIDI_GetCC(take, event_index)
+        local event_time = ok and reaper.MIDI_GetProjTimeFromPPQPos(take, ppqpos)
+        if ok and event_channel == target_channel and event_time <= cursor_time then
+          event_order = event_order + 1
+          events[#events + 1] = {
+            time = event_time, order = event_order, kind = "cc",
+            chanmsg = chanmsg, msg2 = msg2, msg3 = msg3
+          }
+        end
       end
-    end
-  end
-
-  local program_index = find_program_index(Driver, bank_msb, bank_lsb, program_number)
-  if program_index then selected_prg_idx = program_index end
-
-  for i = 0, text_count - 1 do
-    local ok, _, _, _, event_type, message = reaper.MIDI_GetTextSysexEvt(take, i)
-    if ok and event_type == -1 and #message >= 8 then
-      if message:byte(1) == 0x43 and message:byte(2) == 0x10 and
-          message:byte(3) == 0x7F and message:byte(4) == 0x17 and
-          message:byte(6) == target_channel then
-        local address = message:byte(5)
-        local offset = message:byte(7)
-        if address == 0x36 and offset == 0x02 and message:byte(8) == 0x01 and #message >= 10 then
-          local msb, lsb = message:byte(9, 10)
-          detected_arpeggio = (msb << 7) | lsb
-        elseif address == 0x38 and offset == 0x00 then
-          detected_arp_switch = message:byte(8) == 0x01
+      for event_index = 0, text_count - 1 do
+        local ok, _, _, ppqpos, event_type, message = reaper.MIDI_GetTextSysexEvt(take, event_index)
+        local event_time = ok and reaper.MIDI_GetProjTimeFromPPQPos(take, ppqpos)
+        if ok and event_type == -1 and event_time <= cursor_time and #message >= 8 and
+            message:byte(1) == 0x43 and message:byte(2) == 0x10 and
+            message:byte(3) == 0x7F and message:byte(4) == 0x17 and
+            message:byte(6) == target_channel then
+          event_order = event_order + 1
+          events[#events + 1] = {
+            time = event_time, order = event_order, kind = "sysex",
+            address = message:byte(5), offset = message:byte(7), message = message
+          }
         end
       end
     end
   end
 
-  local arpeggio_index = find_arpeggio_index(Driver, detected_arpeggio)
-  if arpeggio_index then selected_arp_idx = arpeggio_index end
-  if detected_arp_switch ~= nil then arp_sw = detected_arp_switch end
+  table.sort(events, function(a, b)
+    if a.time ~= b.time then return a.time < b.time end
+    return a.order < b.order
+  end)
+
+  selected_prg_idx = 1
+  selected_arp_idx = 1
+  arp_sw = true
+  local bank_msb, bank_lsb
+  for _, event in ipairs(events) do
+    if event.kind == "cc" then
+      if event.chanmsg == 0xB0 and event.msg2 == 0 then
+        bank_msb = event.msg3
+      elseif event.chanmsg == 0xB0 and event.msg2 == 32 then
+        bank_lsb = event.msg3
+      elseif event.chanmsg == 0xC0 then
+        local program_index = find_program_index(Driver, bank_msb, bank_lsb, event.msg2)
+        if program_index then selected_prg_idx = program_index end
+      elseif event.chanmsg == 0xB0 and event.msg2 == 89 then
+        arp_sw = event.msg3 >= 64
+      end
+    elseif event.kind == "sysex" then
+      if event.address == 0x38 and event.offset == 0x3C and #event.message >= 9 then
+        local msb, lsb = event.message:byte(8, 9)
+        local arpeggio_index = find_arpeggio_index(Driver, (msb << 7) | lsb)
+        if arpeggio_index then selected_arp_idx = arpeggio_index end
+      elseif event.address == 0x38 and event.offset == 0x00 then
+        arp_sw = event.message:byte(8) == 0x01
+      end
+    end
+  end
 end
 
 -- Insert or replace the MIDI configuration block.
@@ -315,11 +335,25 @@ local function insert_or_replace_midi(Driver, track, ch)
   if arp then
     local msb = (arp.nr >> 7) & 0x7F
     local lsb = arp.nr & 0x7F
-    local sysex = string.char(0x43, 0x10, 0x7F, 0x17, 0x36, c, 0x02, 0x01, msb, lsb)
+    local sysex = string.char(0x43, 0x10, 0x7F, 0x17, 0x38, c, 0x3C, msb, lsb)
     reaper.MIDI_InsertTextSysexEvt(take, false, false, 8, -1, sysex)
   end
   local arp_switch = string.char(0x43, 0x10, 0x7F, 0x17, 0x38, c, 0x00, arp_sw and 0x01 or 0x00)
   reaper.MIDI_InsertTextSysexEvt(take, false, false, 9, -1, arp_switch)
+
+  if arp and arp_sw then
+    local item_pos = reaper.GetMediaItemInfo_Value(item, "D_POSITION")
+    local item_len = reaper.GetMediaItemInfo_Value(item, "D_LENGTH")
+    if item_len > 0.05 then
+      local start_time = item_pos + math.min(0.05, item_len * 0.1)
+      local end_time = item_pos + item_len - math.min(0.05, item_len * 0.1)
+      local start_ppq = reaper.MIDI_GetPPQPosFromProjTime(take, start_time)
+      local end_ppq = reaper.MIDI_GetPPQPosFromProjTime(take, end_time)
+      for _, pitch in ipairs({ 48, 51, 56 }) do
+        reaper.MIDI_InsertNote(take, false, false, start_ppq, end_ppq, c, pitch, 96)
+      end
+    end
+  end
 
   local iname = string.format("[MX Config] %s | Arp %s", prg and prg.name or "Voice", arp_sw and (arp and arp.name or "ON") or "OFF")
   reaper.GetSetMediaItemTakeInfo_String(take, "P_NAME", iname, true)
@@ -350,7 +384,12 @@ function GUI.render(Driver, Chords, LP, devices)
   end
   sync_selection_from_config(Driver, track, valid_hardware_channel and ch or nil)
 
-  reaper.ImGui_SetNextWindowSize(ctx, 760, 760, reaper.ImGui_Cond_FirstUseEver())
+  local size_condition = resize_window_on_start and reaper.ImGui_Cond_Always() or reaper.ImGui_Cond_FirstUseEver()
+  reaper.ImGui_SetNextWindowSize(ctx, 760, 1000, size_condition)
+  if resize_window_on_start then
+    reaper.SetExtState(settings_section, window_size_key, "1", true)
+    resize_window_on_start = false
+  end
   local visible, open = reaper.ImGui_Begin(ctx, 'Yamaha MX Genos Inspector', true)
 
   if visible then
@@ -425,7 +464,7 @@ function GUI.render(Driver, Chords, LP, devices)
         reaper.ImGui_Text(ctx, "Voices")
         reaper.ImGui_SetNextItemWidth(ctx, -1)
         _, search_prg = reaper.ImGui_InputTextWithHint(ctx, "##pfilt", "Search voices...", search_prg)
-        if reaper.ImGui_BeginListBox(ctx, "##plist", -1, 200) then
+        if reaper.ImGui_BeginListBox(ctx, "##plist", -1, 320) then
           for i, p in ipairs(Driver.programs) do
             if search_prg == "" or p.desc:lower():find(search_prg:lower(), 1, true) then
               if reaper.ImGui_Selectable(ctx, p.desc, selected_prg_idx == i) then
@@ -442,7 +481,7 @@ function GUI.render(Driver, Chords, LP, devices)
         reaper.ImGui_Text(ctx, "Arpeggios")
         reaper.ImGui_SetNextItemWidth(ctx, -1)
         _, search_arp = reaper.ImGui_InputTextWithHint(ctx, "##afilt", "Search arpeggios...", search_arp)
-        if reaper.ImGui_BeginListBox(ctx, "##alist", -1, 200) then
+        if reaper.ImGui_BeginListBox(ctx, "##alist", -1, 320) then
           for i, a in ipairs(Driver.arpeggios) do
             if search_arp == "" or a.desc:lower():find(search_arp:lower(), 1, true) then
               if reaper.ImGui_Selectable(ctx, a.desc, selected_arp_idx == i) then
