@@ -104,7 +104,7 @@ local function device_selector(label, devices, selected_name, key, selected_devi
     for _, device in ipairs(devices) do
       local selected = device.name == selected_name
       if reaper.ImGui_Selectable(ctx, device.name, selected) then
-        device_config[key] = device.name
+        device_config[key .. "_name"] = device.name
         reaper.SetExtState(settings_section, key, device.name, true)
       end
       if selected then reaper.ImGui_SetItemDefaultFocus(ctx) end
@@ -133,10 +133,9 @@ local rig_track_names = {
 }
 
 local function create_rig(devices)
-  if devices.missing.yamaha_input or devices.missing.launchpad_input or
-      devices.missing.nanokey_input or devices.missing.yamaha_output then
+  if devices.missing.yamaha_input or devices.missing.yamaha_output then
     reaper.ShowMessageBox(
-      "Select an available Yamaha MX MIDI input and output, Launchpad input, and nanoKEY2 input before creating the rig.",
+      "Select an available Yamaha MX MIDI input and output before creating the rig.",
       "MIDI devices not selected",
       0
     )
@@ -246,15 +245,18 @@ function GUI.render(Driver, Chords, LP, devices)
   local track = reaper.GetSelectedTrack(0, 0)
   local track_name = "No track selected"
   local ch, dev_id = 1, devices.yamaha_output
+  local can_send = false
 
   if track then
     local _, tname = reaper.GetTrackName(track)
     track_name = (tname ~= "") and tname or "Active track"
     local hw = reaper.GetMediaTrackInfo_Value(track, "I_MIDIHWOUT")
     if hw >= 0 then
-      dev_id = (math.floor(hw) >> 5) & 0x1F
       local output_channel = math.floor(hw) & 0x1F
-      ch = output_channel >= 1 and output_channel <= 16 and output_channel or 1
+      if output_channel >= 1 and output_channel <= 16 and dev_id ~= nil then
+        ch = output_channel
+        can_send = true
+      end
     end
   end
 
@@ -279,9 +281,8 @@ function GUI.render(Driver, Chords, LP, devices)
     reaper.ImGui_Text(ctx, "nanoKEY2 input")
     reaper.ImGui_SameLine(ctx)
     device_selector("##nanokey_input", devices.inputs, device_config.nanokey_input_name, "nanokey_input", devices.nanokey_input_device)
-    if devices.missing.yamaha_input or devices.missing.launchpad_input or
-        devices.missing.nanokey_input or devices.missing.yamaha_output then
-      reaper.ImGui_TextColored(ctx, 0xFFAA00FF, "Select all four MIDI devices before creating the rig.")
+    if devices.missing.yamaha_input or devices.missing.yamaha_output then
+      reaper.ImGui_TextColored(ctx, 0xFFAA00FF, "Select the Yamaha MX input and output to create the rig.")
     end
 
     if reaper.ImGui_Button(ctx, "Create Rig") then
@@ -291,83 +292,87 @@ function GUI.render(Driver, Chords, LP, devices)
     reaper.ImGui_Separator(ctx)
     reaper.ImGui_Spacing(ctx)
 
-    -- Hardware controls.
-    local s_chg, n_sw = reaper.ImGui_Checkbox(ctx, "Arpeggiator (CC89)", arp_sw)
-    if s_chg then arp_sw = n_sw; Driver.audition_am_chord(dev_id, ch) end
+    if can_send then
+      -- Hardware controls.
+      local s_chg, n_sw = reaper.ImGui_Checkbox(ctx, "Arpeggiator (CC89)", arp_sw)
+      if s_chg then arp_sw = n_sw; Driver.audition_am_chord(dev_id, ch) end
 
-    reaper.ImGui_SameLine(ctx)
-    if reaper.ImGui_Button(ctx, "Audition Am Chord") then
-      Driver.send_full_state(dev_id, ch, Driver.programs[selected_prg_idx], Driver.arpeggios[selected_arp_idx], arp_sw, rev_val, cho_val, cut_val, res_val)
-      Driver.audition_am_chord(dev_id, ch)
-    end
-
-    -- CC sliders.
-    reaper.ImGui_SetNextItemWidth(ctx, 180)
-    local r_c, n_r = reaper.ImGui_SliderInt(ctx, "Reverb (CC91)", rev_val, 0, 127)
-    if r_c then rev_val = n_r end
-
-    reaper.ImGui_SameLine(ctx)
-    reaper.ImGui_SetNextItemWidth(ctx, 180)
-    local c_c, n_c = reaper.ImGui_SliderInt(ctx, "Chorus (CC93)", cho_val, 0, 127)
-    if c_c then cho_val = n_c end
-
-    reaper.ImGui_SetNextItemWidth(ctx, 180)
-    local cut_c, n_cut = reaper.ImGui_SliderInt(ctx, "Cutoff (CC74)", cut_val, 0, 127)
-    if cut_c then cut_val = n_cut end
-
-    reaper.ImGui_SameLine(ctx)
-    reaper.ImGui_SetNextItemWidth(ctx, 180)
-    local res_c, n_res = reaper.ImGui_SliderInt(ctx, "Resonance (CC71)", res_val, 0, 127)
-    if res_c then res_val = n_res end
-
-    reaper.ImGui_Spacing(ctx)
-    reaper.ImGui_Separator(ctx)
-
-    -- Tabs.
-    if reaper.ImGui_BeginTabBar(ctx, "Tabs") then
-      -- Voices tab.
-      if reaper.ImGui_BeginTabItem(ctx, "Voices") then
-        reaper.ImGui_SetNextItemWidth(ctx, -1)
-        _, search_prg = reaper.ImGui_InputTextWithHint(ctx, "##pfilt", "Search voices...", search_prg)
-        if reaper.ImGui_BeginListBox(ctx, "##plist", -1, 160) then
-          for i, p in ipairs(Driver.programs) do
-            if search_prg == "" or p.desc:lower():find(search_prg:lower(), 1, true) then
-              if reaper.ImGui_Selectable(ctx, p.desc, selected_prg_idx == i) then
-                selected_prg_idx = i
-                Driver.send_full_state(dev_id, ch, p, Driver.arpeggios[selected_arp_idx], arp_sw, rev_val, cho_val, cut_val, res_val)
-                Driver.audition_am_chord(dev_id, ch)
-              end
-            end
-          end
-          reaper.ImGui_EndListBox(ctx)
-        end
-        reaper.ImGui_EndTabItem(ctx)
+      reaper.ImGui_SameLine(ctx)
+      if reaper.ImGui_Button(ctx, "Audition Am Chord") then
+        Driver.send_full_state(dev_id, ch, Driver.programs[selected_prg_idx], Driver.arpeggios[selected_arp_idx], arp_sw, rev_val, cho_val, cut_val, res_val)
+        Driver.audition_am_chord(dev_id, ch)
       end
 
-      -- Hardware arpeggios tab.
-      if reaper.ImGui_BeginTabItem(ctx, "Hardware Arpeggios") then
-        reaper.ImGui_SetNextItemWidth(ctx, -1)
-        _, search_arp = reaper.ImGui_InputTextWithHint(ctx, "##afilt", "Search arpeggios...", search_arp)
-        if reaper.ImGui_BeginListBox(ctx, "##alist", -1, 160) then
-          for i, a in ipairs(Driver.arpeggios) do
-            if search_arp == "" or a.desc:lower():find(search_arp:lower(), 1, true) then
-              if reaper.ImGui_Selectable(ctx, a.desc, selected_arp_idx == i) then
-                selected_arp_idx = i
-                Driver.send_full_state(dev_id, ch, Driver.programs[selected_prg_idx], a, arp_sw, rev_val, cho_val, cut_val, res_val)
-                Driver.audition_am_chord(dev_id, ch)
+      -- CC sliders.
+      reaper.ImGui_SetNextItemWidth(ctx, 180)
+      local r_c, n_r = reaper.ImGui_SliderInt(ctx, "Reverb (CC91)", rev_val, 0, 127)
+      if r_c then rev_val = n_r end
+
+      reaper.ImGui_SameLine(ctx)
+      reaper.ImGui_SetNextItemWidth(ctx, 180)
+      local c_c, n_c = reaper.ImGui_SliderInt(ctx, "Chorus (CC93)", cho_val, 0, 127)
+      if c_c then cho_val = n_c end
+
+      reaper.ImGui_SetNextItemWidth(ctx, 180)
+      local cut_c, n_cut = reaper.ImGui_SliderInt(ctx, "Cutoff (CC74)", cut_val, 0, 127)
+      if cut_c then cut_val = n_cut end
+
+      reaper.ImGui_SameLine(ctx)
+      reaper.ImGui_SetNextItemWidth(ctx, 180)
+      local res_c, n_res = reaper.ImGui_SliderInt(ctx, "Resonance (CC71)", res_val, 0, 127)
+      if res_c then res_val = n_res end
+
+      reaper.ImGui_Spacing(ctx)
+      reaper.ImGui_Separator(ctx)
+
+      -- Tabs.
+      if reaper.ImGui_BeginTabBar(ctx, "Tabs") then
+        -- Voices tab.
+        if reaper.ImGui_BeginTabItem(ctx, "Voices") then
+          reaper.ImGui_SetNextItemWidth(ctx, -1)
+          _, search_prg = reaper.ImGui_InputTextWithHint(ctx, "##pfilt", "Search voices...", search_prg)
+          if reaper.ImGui_BeginListBox(ctx, "##plist", -1, 160) then
+            for i, p in ipairs(Driver.programs) do
+              if search_prg == "" or p.desc:lower():find(search_prg:lower(), 1, true) then
+                if reaper.ImGui_Selectable(ctx, p.desc, selected_prg_idx == i) then
+                  selected_prg_idx = i
+                  Driver.send_full_state(dev_id, ch, p, Driver.arpeggios[selected_arp_idx], arp_sw, rev_val, cho_val, cut_val, res_val)
+                  Driver.audition_am_chord(dev_id, ch)
+                end
               end
             end
+            reaper.ImGui_EndListBox(ctx)
           end
-          reaper.ImGui_EndListBox(ctx)
+          reaper.ImGui_EndTabItem(ctx)
         end
-        reaper.ImGui_EndTabItem(ctx)
+
+        -- Hardware arpeggios tab.
+        if reaper.ImGui_BeginTabItem(ctx, "Hardware Arpeggios") then
+          reaper.ImGui_SetNextItemWidth(ctx, -1)
+          _, search_arp = reaper.ImGui_InputTextWithHint(ctx, "##afilt", "Search arpeggios...", search_arp)
+          if reaper.ImGui_BeginListBox(ctx, "##alist", -1, 160) then
+            for i, a in ipairs(Driver.arpeggios) do
+              if search_arp == "" or a.desc:lower():find(search_arp:lower(), 1, true) then
+                if reaper.ImGui_Selectable(ctx, a.desc, selected_arp_idx == i) then
+                  selected_arp_idx = i
+                  Driver.send_full_state(dev_id, ch, Driver.programs[selected_prg_idx], a, arp_sw, rev_val, cho_val, cut_val, res_val)
+                  Driver.audition_am_chord(dev_id, ch)
+                end
+              end
+            end
+            reaper.ImGui_EndListBox(ctx)
+          end
+          reaper.ImGui_EndTabItem(ctx)
+        end
+
+        reaper.ImGui_EndTabBar(ctx)
       end
 
-      reaper.ImGui_EndTabBar(ctx)
+      reaper.ImGui_Spacing(ctx)
+      reaper.ImGui_Separator(ctx)
+    else
+      reaper.ImGui_TextDisabled(ctx, "Select a rig channel track with a Yamaha MIDI output to use voices and arpeggios.")
     end
-
-    reaper.ImGui_Spacing(ctx)
-    reaper.ImGui_Separator(ctx)
 
     -- Main action button.
     local existing, _ = find_config_item(track)

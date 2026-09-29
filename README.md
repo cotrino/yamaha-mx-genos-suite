@@ -46,12 +46,16 @@ If ReaPack reports `Timeout was reached` while downloading from `codeberg.org`, 
 
 The ReaPack package includes the Lua modules, both JSFX, the track template, the Yamaha MX49 ReaBank, and the Yamaha MX88 arpeggio CSV. The bank and arpeggio files are loaded automatically from the package's `data` folder. If either file is missing or unreadable, the Inspector displays the expected file paths instead of opening with empty lists.
 
+### Maintain the ReaPack index
+
+The repository includes a Python 3 index generator that uses only the standard library and Git. After committing a release with its updated `@version`, run `python tools/reapack_index.py --scan` to regenerate `index.xml`, then `python tools/reapack_index.py --check` to verify it. The checker compares the index with all versioned manifests in Git history.
+
 ## ▶️ Run the Inspector and Create the Rig
 
 1. Open `Actions > Show action list...`.
 2. Search for `Yamaha MX Genos Inspector`, select it, and click **Run**.
-3. In the Inspector, select the Yamaha MX MIDI input and output, Launchpad input, and nanoKEY2 input from the detected device lists. These choices are remembered by device name and re-resolved if device indexes change.
-4. Click **Create Rig** to add the 16 MIDI channel tracks. Channels 1-15 record from the Yamaha MX, channel 16 records from the nanoKEY2, and each track sends its corresponding channel to the selected Yamaha MX output. The Inspector prevents adding a duplicate master rig.
+3. In the Inspector, select the Yamaha MX MIDI input and output. Launchpad and nanoKEY2 inputs are optional; device choices are remembered by name and re-resolved if indexes change.
+4. Click **Create Rig** to add the 16 MIDI channel tracks. Channels 1-15 record from the Yamaha MX, channel 16 uses the nanoKEY2 when selected or the Yamaha MX otherwise, and each track sends its corresponding channel to the selected Yamaha MX output. The Inspector prevents adding a duplicate master rig.
 5. Select a channel track before using the voice, arpeggio, or MIDI configuration controls. Optionally use **Add...** in the Action List to assign a shortcut or toolbar button.
 
 The installed template is also available from `Insert > Track from template > Yamaha MX Genos Full Rig`.
