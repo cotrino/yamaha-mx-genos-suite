@@ -6,6 +6,16 @@ Driver.programs = {}
 Driver.arpeggios = {}
 Driver.arp_cache = {}
 
+local function send_parameter_change(dev_id, part, parameter, values)
+  local bytes = { 0xF0, 0x43, 0x10, 0x7F, 0x1C, 0x31, part, parameter }
+  for _, value in ipairs(values) do bytes[#bytes + 1] = value end
+  bytes[#bytes + 1] = 0xF7
+  local message = {}
+  for i, value in ipairs(bytes) do message[i] = string.char(value) end
+  message = table.concat(message)
+  reaper.SendMIDIMessageToHardware(dev_id, message, #message)
+end
+
 -- Load and parse the patch and arpeggio files.
 function Driver.init(reabank_path, csv_path)
   -- Parse the ReaBank file.
@@ -85,14 +95,12 @@ function Driver.send_full_state(dev_id, channel, program, arpeggio, arp_sw, rev,
   reaper.StuffMIDIMessage(output_mode, 0xB0 | c, 74, math.floor(cut or 64))
   reaper.StuffMIDIMessage(output_mode, 0xB0 | c, 71, math.floor(res or 64))
 
-  local arp_switch = string.char(0xF0, 0x43, 0x10, 0x7F, 0x17, 0x38, c, 0x00, arp_sw and 0x01 or 0x00, 0xF7)
-  reaper.SendMIDIMessageToHardware(dev_id, arp_switch, #arp_switch)
+  send_parameter_change(dev_id, c, 0x12, { arp_sw and 0x01 or 0x00 })
 
   if arpeggio then
     local msb = (arpeggio.nr >> 7) & 0x7F
     local lsb = arpeggio.nr & 0x7F
-    local sysex = string.char(0xF0, 0x43, 0x10, 0x7F, 0x17, 0x38, c, 0x3C, msb, lsb, 0xF7)
-    reaper.SendMIDIMessageToHardware(dev_id, sysex, #sysex)
+    send_parameter_change(dev_id, c, 0x15, { msb, lsb })
   end
 end
 

@@ -254,7 +254,7 @@ local function sync_selection_from_config(Driver, track, channel)
         local event_time = ok and reaper.MIDI_GetProjTimeFromPPQPos(take, ppqpos)
         if ok and event_type == -1 and event_time <= cursor_time and #message >= 8 and
             message:byte(1) == 0x43 and message:byte(2) == 0x10 and
-            message:byte(3) == 0x7F and message:byte(4) == 0x17 and
+            message:byte(3) == 0x7F and message:byte(4) == 0x1C and
             message:byte(6) == target_channel then
           event_order = event_order + 1
           events[#events + 1] = {
@@ -288,11 +288,11 @@ local function sync_selection_from_config(Driver, track, channel)
         arp_sw = event.msg3 >= 64
       end
     elseif event.kind == "sysex" then
-      if event.address == 0x38 and event.offset == 0x3C and #event.message >= 9 then
+      if event.address == 0x31 and event.offset == 0x15 and #event.message >= 9 then
         local msb, lsb = event.message:byte(8, 9)
         local arpeggio_index = find_arpeggio_index(Driver, (msb << 7) | lsb)
         if arpeggio_index then selected_arp_idx = arpeggio_index end
-      elseif event.address == 0x38 and event.offset == 0x00 then
+      elseif event.address == 0x31 and event.offset == 0x12 then
         arp_sw = event.message:byte(8) == 0x01
       end
     end
@@ -335,10 +335,10 @@ local function insert_or_replace_midi(Driver, track, ch)
   if arp then
     local msb = (arp.nr >> 7) & 0x7F
     local lsb = arp.nr & 0x7F
-    local sysex = string.char(0x43, 0x10, 0x7F, 0x17, 0x38, c, 0x3C, msb, lsb)
+    local sysex = string.char(0x43, 0x10, 0x7F, 0x1C, 0x31, c, 0x15, msb, lsb)
     reaper.MIDI_InsertTextSysexEvt(take, false, false, 8, -1, sysex)
   end
-  local arp_switch = string.char(0x43, 0x10, 0x7F, 0x17, 0x38, c, 0x00, arp_sw and 0x01 or 0x00)
+  local arp_switch = string.char(0x43, 0x10, 0x7F, 0x1C, 0x31, c, 0x12, arp_sw and 0x01 or 0x00)
   reaper.MIDI_InsertTextSysexEvt(take, false, false, 9, -1, arp_switch)
 
   if arp and arp_sw then
@@ -423,6 +423,7 @@ function GUI.render(Driver, Chords, LP, devices)
 
     if can_send then
       -- Hardware controls.
+      reaper.ImGui_TextWrapped(ctx, "To send arp notes back to REAPER, set Utility > Job > Quick Setup > Arp Rec on the MX88.")
       local s_chg, n_sw = reaper.ImGui_Checkbox(ctx, "Arpeggiator", arp_sw)
       if s_chg then
         arp_sw = n_sw

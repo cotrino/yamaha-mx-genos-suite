@@ -77,7 +77,7 @@ The Inspector opens as a ReaImGui window. Drag its title bar to a REAPER Docker 
 
 ## 🎹 Hardware Setup
 
-1. **Yamaha MX88 / MX61 / MX49:** On the keyboard, choose `Utility > Job > Quick Setup > DAW Record`, then connect it to the computer over USB.
+1. **Yamaha MX88 / MX61 / MX49:** Connect it to the computer over USB. Choose `Utility > Job > Quick Setup > Arp Rec` when you need the keyboard to send generated arpeggio notes back to REAPER; `DAW Rec` turns Arpeggio MIDI Out off.
 2. **Yamaha MX88 / MX61 / MX49, Novation Launchpad Mini, and Korg NanoKey2:** Connect the hardware over USB. In REAPER, open `Preferences > Audio > MIDI Devices`, enable all three devices as MIDI inputs, and enable the Yamaha MX as a MIDI output. Then choose the corresponding devices in the Inspector.
 
 ---
