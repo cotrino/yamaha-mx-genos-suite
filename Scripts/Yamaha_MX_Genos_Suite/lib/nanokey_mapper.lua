@@ -16,7 +16,6 @@ function NK.process(midi_msg, Driver)
       local track = reaper.GetTrack(0, track_idx)
       if track then
         reaper.SetOnlyTrackSelected(track)
-        reaper.SetMediaTrackInfo_Value(track, "I_RECARM", 1)
       end
 
     -- E2 (note 52): mute the selected track.

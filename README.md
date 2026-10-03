@@ -7,8 +7,9 @@
 ## 🚀 Features
 
 - **REAPER Inspector:** A ReaImGui control panel that follows the selected track.
-- **Live Am chord audition:** Voice, arpeggio, and CC changes can audition an extended Am chord ($A2, E3, A3, C4, E4, G4, B4$) on the hardware synthesizer.
-- **MIDI arrangement blocks:** Read the MIDI configuration at the edit cursor. **Insert / Replace MIDI Config** writes bank, program, arpeggiator (CC89), and effect messages without adding notes.
+- **Voice and arpeggio preview:** Picking a voice or arpeggio writes a MIDI config item at the edit cursor, sized to the arpeggio's bar count and holding the voice, arpeggio, and controller messages plus optional trigger notes, then plays it so the MX responds. Picking again replaces that item.
+- **Category buttons:** Small buttons above the Voices and Arpeggios lists (for example `A.Gtr`, `ApKb`) jump to the first entry of that category.
+- **MIDI arrangement blocks:** Read the MIDI configuration at the edit cursor. **Insert / Replace MIDI Config** writes bank, program, arpeggiator (CC89 and SysEx), and effect messages, plus the preview notes when enabled.
 - **Launchpad Mini style controls:**
   - Row 1: Registration memories (*Scenes 1-8*).
   - Row 2: Style sections (`Intro A/B`, `Ending A/B`).
@@ -55,8 +56,8 @@ The repository includes a Python 3 index generator that uses only the standard l
 1. Open `Actions > Show action list...`.
 2. Search for `Yamaha MX Genos Inspector`, select it, and click **Run**.
 3. In the Inspector, select the Yamaha MX MIDI input and output. Launchpad and nanoKEY2 inputs are optional; device choices are remembered by name and re-resolved if indexes change.
-4. Click **Create Rig** to add the 16 MIDI channel tracks. Channels 1-15 record from the Yamaha MX, channel 16 uses the nanoKEY2 when selected or the Yamaha MX otherwise, and each track sends its corresponding channel to the selected Yamaha MX output. The Inspector prevents adding a duplicate master rig.
-5. Select a channel track before using the voice, arpeggio, or MIDI configuration controls. Optionally use **Add...** in the Action List to assign a shortcut or toolbar button.
+4. Click **Create Rig** to add the 16 MIDI channel tracks. Channels 1-15 record from the Yamaha MX, channel 16 uses the nanoKEY2 when selected or the Yamaha MX otherwise, and each track sends its corresponding channel to the selected Yamaha MX output. Tracks are not armed; each one arms when you select it. The Inspector prevents adding a duplicate master rig.
+5. Select a channel track before using the voice, arpeggio, or MIDI configuration controls. Previews play from the edit cursor and only replace items named `[MX Config]`. Optionally use **Add...** in the Action List to assign a shortcut or toolbar button.
 
 The installed template is also available from `Insert > Track from template > Yamaha MX Genos Full Rig`.
 

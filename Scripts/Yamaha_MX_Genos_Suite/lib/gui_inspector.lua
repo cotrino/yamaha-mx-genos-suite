@@ -10,6 +10,8 @@ local rev_val = 40
 local cho_val = 0
 local cut_val = 64
 local res_val = 64
+local preview_notes = true
+local preview_stop_time = nil
 
 local search_prg = ""
 local search_arp = ""
@@ -137,6 +139,28 @@ local rig_track_names = {
   "Ch 16 - Auxiliary (NanoKey2)"
 }
 
+local rig_master_name = "YAMAHA MX (MASTER RIG)"
+local armed_for_selection = nil
+
+-- Arms only the selected rig channel track; runs when the selection changes.
+local function sync_rig_arming(selected)
+  if selected == armed_for_selection then return end
+  armed_for_selection = selected
+  for index = 0, reaper.CountTracks(0) - 1 do
+    local track = reaper.GetTrack(0, index)
+    local parent = reaper.GetParentTrack(track)
+    if parent then
+      local _, parent_name = reaper.GetTrackName(parent)
+      if parent_name == rig_master_name then
+        local arm = track == selected and 1 or 0
+        if reaper.GetMediaTrackInfo_Value(track, "I_RECARM") ~= arm then
+          reaper.SetMediaTrackInfo_Value(track, "I_RECARM", arm)
+        end
+      end
+    end
+  end
+end
+
 local function create_rig(devices)
   if devices.missing.yamaha_input or devices.missing.yamaha_output then
     reaper.ShowMessageBox(
@@ -149,7 +173,7 @@ local function create_rig(devices)
 
   for i = 0, reaper.CountTracks(0) - 1 do
     local _, name = reaper.GetTrackName(reaper.GetTrack(0, i))
-    if name == "YAMAHA MX (MASTER RIG)" then
+    if name == rig_master_name then
       reaper.ShowMessageBox("A Yamaha MX rig already exists in this project.", "Rig already exists", 0)
       return
     end
@@ -160,7 +184,7 @@ local function create_rig(devices)
   reaper.InsertTrackAtIndex(master_index, true)
 
   local master_track = reaper.GetTrack(0, master_index)
-  reaper.GetSetMediaTrackInfo_String(master_track, "P_NAME", "YAMAHA MX (MASTER RIG)", true)
+  reaper.GetSetMediaTrackInfo_String(master_track, "P_NAME", rig_master_name, true)
   reaper.SetMediaTrackInfo_Value(master_track, "I_FOLDERDEPTH", 1)
 
   for channel, name in ipairs(rig_track_names) do
@@ -170,7 +194,6 @@ local function create_rig(devices)
     local track = reaper.GetTrack(0, track_index)
     reaper.GetSetMediaTrackInfo_String(track, "P_NAME", name, true)
     reaper.SetMediaTrackInfo_Value(track, "I_FOLDERDEPTH", channel == #rig_track_names and -1 or 0)
-    reaper.SetMediaTrackInfo_Value(track, "I_RECARM", 1)
     local input_id = channel == 16 and devices.nanokey_input or devices.yamaha_input
     reaper.SetMediaTrackInfo_Value(track, "I_RECINPUT", 4096 + (input_id << 5))
     reaper.SetMediaTrackInfo_Value(track, "I_MIDI_INPUT_CHANMAP", channel)
@@ -193,7 +216,10 @@ local function find_config_item(track)
     local ilen = reaper.GetMediaItemInfo_Value(item, "D_LENGTH")
     if pos >= ipos and pos <= (ipos + ilen) then
       local take = reaper.GetActiveTake(item)
-      if take and reaper.TakeIsMIDI(take) then return item, take end
+      if take and reaper.TakeIsMIDI(take) then
+        local _, take_name = reaper.GetSetMediaItemTakeInfo_String(take, "P_NAME", "", false)
+        if take_name:find("^%[MX Config%]") then return item, take end
+      end
     end
   end
   return nil
@@ -216,6 +242,9 @@ local function find_arpeggio_index(Driver, arpeggio_number)
   end
   return nil
 end
+
+-- Config events sit a few ticks after the item start, where the cursor usually is.
+local config_event_slack = 0.05
 
 local function sync_selection_from_config(Driver, track, channel)
   if not track or not channel then return end
@@ -241,7 +270,7 @@ local function sync_selection_from_config(Driver, track, channel)
       for event_index = 0, cc_count - 1 do
         local ok, _, _, ppqpos, chanmsg, event_channel, msg2, msg3 = reaper.MIDI_GetCC(take, event_index)
         local event_time = ok and reaper.MIDI_GetProjTimeFromPPQPos(take, ppqpos)
-        if ok and event_channel == target_channel and event_time <= cursor_time then
+        if ok and event_channel == target_channel and event_time <= cursor_time + config_event_slack then
           event_order = event_order + 1
           events[#events + 1] = {
             time = event_time, order = event_order, kind = "cc",
@@ -252,9 +281,9 @@ local function sync_selection_from_config(Driver, track, channel)
       for event_index = 0, text_count - 1 do
         local ok, _, _, ppqpos, event_type, message = reaper.MIDI_GetTextSysexEvt(take, event_index)
         local event_time = ok and reaper.MIDI_GetProjTimeFromPPQPos(take, ppqpos)
-        if ok and event_type == -1 and event_time <= cursor_time and #message >= 8 and
+        if ok and event_type == -1 and event_time <= cursor_time + config_event_slack and #message >= 8 and
             message:byte(1) == 0x43 and message:byte(2) == 0x10 and
-            message:byte(3) == 0x7F and message:byte(4) == 0x1C and
+            message:byte(3) == 0x7F and message:byte(4) == 0x17 and
             message:byte(6) == target_channel then
           event_order = event_order + 1
           events[#events + 1] = {
@@ -288,42 +317,61 @@ local function sync_selection_from_config(Driver, track, channel)
         arp_sw = event.msg3 >= 64
       end
     elseif event.kind == "sysex" then
-      if event.address == 0x31 and event.offset == 0x15 and #event.message >= 9 then
+      if event.address == 0x38 and event.offset == 0x3C and #event.message >= 9 then
         local msb, lsb = event.message:byte(8, 9)
         local arpeggio_index = find_arpeggio_index(Driver, (msb << 7) | lsb)
         if arpeggio_index then selected_arp_idx = arpeggio_index end
-      elseif event.address == 0x31 and event.offset == 0x12 then
+      elseif event.address == 0x38 and event.offset == 0x00 then
         arp_sw = event.message:byte(8) == 0x01
       end
     end
   end
 end
 
--- Insert or replace the MIDI configuration block.
+-- Length in seconds of `bars` project measures starting at `start_time`.
+local function bars_to_seconds(start_time, bars)
+  local _, measure = reaper.TimeMap2_timeToBeats(0, start_time)
+  local start_qn = reaper.TimeMap2_timeToQN(0, start_time)
+  local total_qn = 0
+  for index = measure, measure + bars - 1 do
+    local _, qn_start, qn_end = reaper.TimeMap_GetMeasureInfo(0, index)
+    total_qn = total_qn + (qn_end - qn_start)
+  end
+  return reaper.TimeMap2_QNToTime(0, start_qn + total_qn) - start_time
+end
+
+local function remember_config(track, ch)
+  last_config_track = track
+  last_config_channel = ch
+  last_config_time = reaper.GetCursorPosition()
+  local _, hash = reaper.MIDI_GetTrackHash(track, false)
+  last_config_hash = hash
+end
+
+-- Insert or replace the MIDI configuration block; its length follows the arpeggio's bars.
 local function insert_or_replace_midi(Driver, track, ch)
   if not track then return end
 
+  local arp = Driver.arpeggios[selected_arp_idx]
+  local prg = Driver.programs[selected_prg_idx]
+  local bars = (arp_sw and arp and arp.length) or 1
+  local c = (ch - 1) & 0x0F
+
   reaper.Undo_BeginBlock()
   local pos = reaper.GetCursorPosition()
-  local item, take = find_config_item(track)
-
-  if item then
-    reaper.MIDI_SetAllEvts(take, "")
-  else
-    item = reaper.CreateNewMIDIItemInProj(track, pos, pos + 2.0, false)
-    take = reaper.GetActiveTake(item)
+  local old_item = find_config_item(track)
+  if old_item then
+    pos = reaper.GetMediaItemInfo_Value(old_item, "D_POSITION")
+    reaper.DeleteTrackMediaItem(track, old_item)
   end
 
-  if not take then return end
-
-  local c = (ch - 1) & 0x0F
-  local prg = Driver.programs[selected_prg_idx]
-  local arp = Driver.arpeggios[selected_arp_idx]
+  local item = reaper.CreateNewMIDIItemInProj(track, pos, pos + bars_to_seconds(pos, bars), false)
+  local take = reaper.GetActiveTake(item)
 
   if prg then
     reaper.MIDI_InsertCC(take, false, false, 0, 0xB0, c, 0, prg.msb)
     reaper.MIDI_InsertCC(take, false, false, 1, 0xB0, c, 32, prg.lsb)
-    reaper.MIDI_InsertProgram(take, false, false, 2, c, prg.prg)
+    reaper.MIDI_InsertCC(take, false, false, 2, 0xC0, c, prg.prg, 0)
   end
 
   reaper.MIDI_InsertCC(take, false, false, 3, 0xB0, c, 89, arp_sw and 127 or 0)
@@ -332,20 +380,16 @@ local function insert_or_replace_midi(Driver, track, ch)
   reaper.MIDI_InsertCC(take, false, false, 6, 0xB0, c, 74, cut_val)
   reaper.MIDI_InsertCC(take, false, false, 7, 0xB0, c, 71, res_val)
 
-  if arp then
-    local msb = (arp.nr >> 7) & 0x7F
-    local lsb = arp.nr & 0x7F
-    local sysex = string.char(0x43, 0x10, 0x7F, 0x1C, 0x31, c, 0x15, msb, lsb)
-    reaper.MIDI_InsertTextSysexEvt(take, false, false, 8, -1, sysex)
+  for index, body in ipairs(Driver.arp_messages(ch, arp, arp_sw)) do
+    reaper.MIDI_InsertTextSysexEvt(take, false, false, 7 + index, -1, body)
   end
-  local arp_switch = string.char(0x43, 0x10, 0x7F, 0x1C, 0x31, c, 0x12, arp_sw and 0x01 or 0x00)
-  reaper.MIDI_InsertTextSysexEvt(take, false, false, 9, -1, arp_switch)
 
-  if arp and arp_sw then
+  if preview_notes then
     local item_pos = reaper.GetMediaItemInfo_Value(item, "D_POSITION")
     local item_len = reaper.GetMediaItemInfo_Value(item, "D_LENGTH")
     if item_len > 0.05 then
-      local start_time = item_pos + math.min(0.05, item_len * 0.1)
+      -- Leave the MX time to apply the voice and arpeggio before the trigger notes.
+      local start_time = item_pos + math.min(0.1, item_len * 0.1)
       local end_time = item_pos + item_len - math.min(0.05, item_len * 0.1)
       local start_ppq = reaper.MIDI_GetPPQPosFromProjTime(take, start_time)
       local end_ppq = reaper.MIDI_GetPPQPosFromProjTime(take, end_time)
@@ -360,10 +404,55 @@ local function insert_or_replace_midi(Driver, track, ch)
 
   reaper.Undo_EndBlock("Configure Yamaha MX MIDI", -1)
   reaper.UpdateArrange()
+  return item
+end
+
+local function stop_preview()
+  if preview_stop_time then
+    reaper.CSurf_OnStop()
+    preview_stop_time = nil
+  end
+end
+
+-- Write the config item, then play it so the MX receives every message in it.
+local function preview_config(Driver, track, ch)
+  stop_preview()
+  local item = insert_or_replace_midi(Driver, track, ch)
+  if not item then return end
+  reaper.SetEditCurPos(reaper.GetMediaItemInfo_Value(item, "D_POSITION"), false, false)
+  reaper.CSurf_OnPlay()
+  preview_stop_time = reaper.time_precise() + reaper.GetMediaItemInfo_Value(item, "D_LENGTH") + 0.25
+  remember_config(track, ch)
+end
+
+-- Draws wrapping category buttons; returns the category clicked this frame.
+local function category_buttons(id, categories)
+  local clicked
+  local avail = reaper.ImGui_GetContentRegionAvail(ctx)
+  local pad_x = reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_FramePadding())
+  local spacing_x = reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_ItemSpacing())
+  local used = 0
+  for _, category in ipairs(categories) do
+    local width = reaper.ImGui_CalcTextSize(ctx, category) + pad_x * 2
+    if used > 0 then
+      if used + spacing_x + width <= avail then
+        reaper.ImGui_SameLine(ctx)
+        used = used + spacing_x
+      else
+        used = 0
+      end
+    end
+    if reaper.ImGui_SmallButton(ctx, category .. "##" .. id .. category) then clicked = category end
+    used = used + width
+  end
+  return clicked
 end
 
 function GUI.render(Driver, Chords, LP, devices)
+  if preview_stop_time and reaper.time_precise() >= preview_stop_time then stop_preview() end
+
   local track = reaper.GetSelectedTrack(0, 0)
+  sync_rig_arming(track)
   local track_name = "No track selected"
   local ch, dev_id = 1, devices.yamaha_output
   local can_send = false
@@ -427,14 +516,21 @@ function GUI.render(Driver, Chords, LP, devices)
       local s_chg, n_sw = reaper.ImGui_Checkbox(ctx, "Arpeggiator", arp_sw)
       if s_chg then
         arp_sw = n_sw
-        Driver.send_full_state(dev_id, ch, nil, Driver.arpeggios[selected_arp_idx], arp_sw, rev_val, cho_val, cut_val, res_val)
-        Driver.audition_am_chord(dev_id, ch)
+        preview_config(Driver, track, ch)
       end
 
       reaper.ImGui_SameLine(ctx)
-      if reaper.ImGui_Button(ctx, "Audition Am Chord") then
-        Driver.send_full_state(dev_id, ch, Driver.programs[selected_prg_idx], Driver.arpeggios[selected_arp_idx], arp_sw, rev_val, cho_val, cut_val, res_val)
-        Driver.audition_am_chord(dev_id, ch)
+      local n_chg, n_notes = reaper.ImGui_Checkbox(ctx, "Preview notes", preview_notes)
+      if n_chg then preview_notes = n_notes end
+
+      reaper.ImGui_SameLine(ctx)
+      if reaper.ImGui_Button(ctx, "Preview") then
+        preview_config(Driver, track, ch)
+      end
+
+      reaper.ImGui_SameLine(ctx)
+      if reaper.ImGui_Button(ctx, "Stop") then
+        stop_preview()
       end
 
       -- CC sliders.
@@ -463,15 +559,22 @@ function GUI.render(Driver, Chords, LP, devices)
         reaper.ImGui_TableNextRow(ctx)
         reaper.ImGui_TableSetColumnIndex(ctx, 0)
         reaper.ImGui_Text(ctx, "Voices")
+        local jump_prg = category_buttons("v", Driver.voice_categories)
         reaper.ImGui_SetNextItemWidth(ctx, -1)
         _, search_prg = reaper.ImGui_InputTextWithHint(ctx, "##pfilt", "Search voices...", search_prg)
         if reaper.ImGui_BeginListBox(ctx, "##plist", -1, 320) then
           for i, p in ipairs(Driver.programs) do
             if search_prg == "" or p.desc:lower():find(search_prg:lower(), 1, true) then
-              if reaper.ImGui_Selectable(ctx, p.desc, selected_prg_idx == i) then
+              local jumped = jump_prg ~= nil and p.category == jump_prg
+              if jumped then
+                jump_prg = nil
                 selected_prg_idx = i
-                Driver.send_full_state(dev_id, ch, p, Driver.arpeggios[selected_arp_idx], arp_sw, rev_val, cho_val, cut_val, res_val)
-                Driver.audition_am_chord(dev_id, ch)
+              end
+              local picked = reaper.ImGui_Selectable(ctx, p.desc, selected_prg_idx == i)
+              if jumped then reaper.ImGui_SetScrollHereY(ctx, 0.0) end
+              if picked or jumped then
+                selected_prg_idx = i
+                preview_config(Driver, track, ch)
               end
             end
           end
@@ -480,15 +583,22 @@ function GUI.render(Driver, Chords, LP, devices)
 
         reaper.ImGui_TableSetColumnIndex(ctx, 1)
         reaper.ImGui_Text(ctx, "Arpeggios")
+        local jump_arp = category_buttons("a", Driver.arp_categories)
         reaper.ImGui_SetNextItemWidth(ctx, -1)
         _, search_arp = reaper.ImGui_InputTextWithHint(ctx, "##afilt", "Search arpeggios...", search_arp)
         if reaper.ImGui_BeginListBox(ctx, "##alist", -1, 320) then
           for i, a in ipairs(Driver.arpeggios) do
             if search_arp == "" or a.desc:lower():find(search_arp:lower(), 1, true) then
-              if reaper.ImGui_Selectable(ctx, a.desc, selected_arp_idx == i) then
+              local jumped = jump_arp ~= nil and a.category == jump_arp
+              if jumped then
+                jump_arp = nil
                 selected_arp_idx = i
-                Driver.send_full_state(dev_id, ch, Driver.programs[selected_prg_idx], a, arp_sw, rev_val, cho_val, cut_val, res_val)
-                Driver.audition_am_chord(dev_id, ch)
+              end
+              local picked = reaper.ImGui_Selectable(ctx, a.desc, selected_arp_idx == i)
+              if jumped then reaper.ImGui_SetScrollHereY(ctx, 0.0) end
+              if picked or jumped then
+                selected_arp_idx = i
+                preview_config(Driver, track, ch)
               end
             end
           end
@@ -516,6 +626,7 @@ function GUI.render(Driver, Chords, LP, devices)
 
     if reaper.ImGui_Button(ctx, lbl, -1, 40) then
       insert_or_replace_midi(Driver, track, ch)
+      remember_config(track, ch)
     end
     reaper.ImGui_PopStyleColor(ctx, 1)
 

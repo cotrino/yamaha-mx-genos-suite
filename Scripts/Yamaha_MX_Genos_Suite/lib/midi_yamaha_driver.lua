@@ -5,15 +5,40 @@ local Driver = {}
 Driver.programs = {}
 Driver.arpeggios = {}
 Driver.arp_cache = {}
+Driver.voice_categories = {}
+Driver.arp_categories = {}
 
-local function send_parameter_change(dev_id, part, parameter, values)
-  local bytes = { 0xF0, 0x43, 0x10, 0x7F, 0x1C, 0x31, part, parameter }
-  for _, value in ipairs(values) do bytes[#bytes + 1] = value end
-  bytes[#bytes + 1] = 0xF7
-  local message = {}
-  for i, value in ipairs(bytes) do message[i] = string.char(value) end
-  message = table.concat(message)
-  reaper.SendMIDIMessageToHardware(dev_id, message, #message)
+-- "Piano: Name" -> "Piano"; "Hit 055 New Stab 63 : Orc Hit" -> "Hit".
+local function voice_category(name)
+  local prefix = name:match("^([^:]+):")
+  if not prefix then return "Misc" end
+  prefix = prefix:match("^%s*(.-)%s*$")
+  if prefix:find("%d") then prefix = prefix:match("^%S+") or prefix end
+  return prefix ~= "" and prefix or "Misc"
+end
+
+-- Distinct categories in order of first appearance.
+local function build_categories(items)
+  local categories, seen = {}, {}
+  for _, item in ipairs(items) do
+    if not seen[item.category] then
+      seen[item.category] = true
+      categories[#categories + 1] = item.category
+    end
+  end
+  return categories
+end
+
+-- Arp SysEx bodies (no F0/F7), model 7F 17 as captured from a Yamaha MX88.
+function Driver.arp_messages(channel, arpeggio, arp_sw)
+  local part = (channel - 1) & 0x0F
+  local messages = {}
+  if arpeggio then
+    messages[#messages + 1] = string.char(0x43, 0x10, 0x7F, 0x17, 0x38, part, 0x3C,
+      (arpeggio.nr >> 7) & 0x7F, arpeggio.nr & 0x7F)
+  end
+  messages[#messages + 1] = string.char(0x43, 0x10, 0x7F, 0x17, 0x38, part, 0x00, arp_sw and 0x01 or 0x00)
+  return messages
 end
 
 -- Load and parse the patch and arpeggio files.
@@ -31,10 +56,9 @@ function Driver.init(reabank_path, csv_path)
         else
           local prg, _, pname = line:match("^(%d+)%s+(%d+)%s+(.+)$")
           if prg and pname then
-            local cat = pname:match("^(%A+):") or "Misc"
             table.insert(Driver.programs, {
               msb = msb, lsb = lsb, prg = tonumber(prg),
-              name = pname, category = cat, bank_name = bname,
+              name = pname, category = voice_category(pname), bank_name = bname,
               desc = string.format("[%03d:%03d:%03d] %s", msb, lsb, tonumber(prg), pname)
             })
           end
@@ -74,6 +98,9 @@ function Driver.init(reabank_path, csv_path)
     f_csv:close()
   end
 
+  Driver.voice_categories = build_categories(Driver.programs)
+  Driver.arp_categories = build_categories(Driver.arpeggios)
+
   return #Driver.programs, #Driver.arpeggios
 end
 
@@ -95,37 +122,10 @@ function Driver.send_full_state(dev_id, channel, program, arpeggio, arp_sw, rev,
   reaper.StuffMIDIMessage(output_mode, 0xB0 | c, 74, math.floor(cut or 64))
   reaper.StuffMIDIMessage(output_mode, 0xB0 | c, 71, math.floor(res or 64))
 
-  send_parameter_change(dev_id, c, 0x12, { arp_sw and 0x01 or 0x00 })
-
-  if arpeggio then
-    local msb = (arpeggio.nr >> 7) & 0x7F
-    local lsb = arpeggio.nr & 0x7F
-    send_parameter_change(dev_id, c, 0x15, { msb, lsb })
+  for _, body in ipairs(Driver.arp_messages(channel, arpeggio, arp_sw)) do
+    local sysex = "\xF0" .. body .. "\xF7"
+    reaper.SendMIDIMessageToHardware(dev_id, sysex, #sysex)
   end
-end
-
--- Audition an extended Am chord (A2, E3, A3, C4, E4, G4, B4).
-function Driver.audition_am_chord(dev_id, channel)
-  if dev_id == nil then return end
-  local c = (channel - 1) & 0x0F
-  local output_mode = 16 + dev_id
-  local am_notes = { 45, 52, 57, 60, 64, 67, 71 }
-
-  for _, note in ipairs(am_notes) do
-    reaper.StuffMIDIMessage(output_mode, 0x90 | c, note, 90)
-  end
-
-  local t_start = reaper.time_precise()
-  local function release()
-    if reaper.time_precise() - t_start > 1.2 then
-      for _, note in ipairs(am_notes) do
-        reaper.StuffMIDIMessage(output_mode, 0x80 | c, note, 0)
-      end
-    else
-      reaper.defer(release)
-    end
-  end
-  reaper.defer(release)
 end
 
 return Driver

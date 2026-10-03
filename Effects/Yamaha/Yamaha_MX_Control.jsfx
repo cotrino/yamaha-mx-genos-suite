@@ -33,7 +33,7 @@ midisend(0, $xB0 | ch, 93, slider7);
 midisend(0, $xB0 | ch, 74, slider8);
 midisend(0, $xB0 | ch, 71, slider9);
 
-// 3. Yamaha MX per-part arpeggio parameters (Part 1 / MIDI channel 1).
+// 3. Yamaha MX per-part arpeggio parameters (model 7F 17, Part 1 / MIDI channel 1).
 arp_num = slider10;
 msb = (arp_num >> 7) & 127;
 lsb = arp_num & 127;
@@ -42,21 +42,21 @@ midisend_buf(0, $xF0);
 midisend_buf(0, $x43);
 midisend_buf(0, $x10);
 midisend_buf(0, $x7F);
-midisend_buf(0, $x1C);
-midisend_buf(0, $x31);
+midisend_buf(0, $x17);
+midisend_buf(0, $x38);
 midisend_buf(0, ch);
-midisend_buf(0, $x12);
-midisend_buf(0, slider4);
+midisend_buf(0, $x3C);
+midisend_buf(0, msb);
+midisend_buf(0, lsb);
 midisend_buf(0, $xF7);
 
 midisend_buf(0, $xF0);
 midisend_buf(0, $x43);
 midisend_buf(0, $x10);
 midisend_buf(0, $x7F);
-midisend_buf(0, $x1C);
-midisend_buf(0, $x31);
+midisend_buf(0, $x17);
+midisend_buf(0, $x38);
 midisend_buf(0, ch);
-midisend_buf(0, $x15);
-midisend_buf(0, msb);
-midisend_buf(0, lsb);
+midisend_buf(0, $x00);
+midisend_buf(0, slider4);
 midisend_buf(0, $xF7);
