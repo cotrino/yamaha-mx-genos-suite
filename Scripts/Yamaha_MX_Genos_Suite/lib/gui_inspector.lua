@@ -3,6 +3,21 @@ local reaper = reaper
 local GUI = {}
 
 local ctx = reaper.ImGui_CreateContext('Yamaha MX Genos Inspector')
+local Icons = require("icons")
+
+-- Without the icon font the category buttons fall back to text.
+local icon_font = nil
+do
+  local lib_dir = debug.getinfo(1, "S").source:match("^@?(.*[\\/])")
+  if lib_dir then
+    local loaded, font = pcall(reaper.ImGui_CreateFontFromFile, lib_dir .. "../" .. Icons.font_file, 0, 0)
+    if loaded and font then
+      reaper.ImGui_Attach(ctx, font)
+      icon_font = font
+    end
+  end
+end
+local icon_button_size = 28
 local selected_prg_idx = 1
 local selected_arp_idx = 1
 local arp_sw = true
@@ -20,7 +35,7 @@ local last_config_channel = nil
 local last_config_hash = nil
 local last_config_time = nil
 local settings_section = "Yamaha MX Genos Inspector"
-local window_size_key = "window_size_v1_0_8"
+local window_size_key = "window_size_v1_0_11"
 local resize_window_on_start = reaper.GetExtState(settings_section, window_size_key) ~= "1"
 local device_config = {
   yamaha_input_name = reaper.GetExtState(settings_section, "yamaha_input"),
@@ -140,25 +155,60 @@ local rig_track_names = {
 }
 
 local rig_master_name = "YAMAHA MX (MASTER RIG)"
+local rig_routing_key = "rig_routing_v2"
 local armed_for_selection = nil
+local rig_panel_state = nil
 
--- Arms only the selected rig channel track; runs when the selection changes.
-local function sync_rig_arming(selected)
-  if selected == armed_for_selection then return end
-  armed_for_selection = selected
+local function for_each_rig_track(fn)
   for index = 0, reaper.CountTracks(0) - 1 do
     local track = reaper.GetTrack(0, index)
     local parent = reaper.GetParentTrack(track)
     if parent then
       local _, parent_name = reaper.GetTrackName(parent)
-      if parent_name == rig_master_name then
-        local arm = track == selected and 1 or 0
-        if reaper.GetMediaTrackInfo_Value(track, "I_RECARM") ~= arm then
-          reaper.SetMediaTrackInfo_Value(track, "I_RECARM", arm)
-        end
-      end
+      if parent_name == rig_master_name then fn(track) end
     end
   end
+end
+
+local function rig_exists()
+  for index = 0, reaper.CountTracks(0) - 1 do
+    local _, name = reaper.GetTrackName(reaper.GetTrack(0, index))
+    if name == rig_master_name then return true end
+  end
+  return false
+end
+
+-- One-time fix for rigs made before 1.0.11: input map was off by one and monitoring was off.
+local function repair_rig_once()
+  local _, done = reaper.GetProjExtState(0, settings_section, rig_routing_key)
+  if done == "1" then return end
+  local found = false
+  for_each_rig_track(function(track)
+    found = true
+    local channel = math.floor(reaper.GetMediaTrackInfo_Value(track, "I_MIDIHWOUT")) & 0x1F
+    if channel >= 1 and channel <= 16 then
+      if reaper.GetMediaTrackInfo_Value(track, "I_MIDI_INPUT_CHANMAP") == channel then
+        reaper.SetMediaTrackInfo_Value(track, "I_MIDI_INPUT_CHANMAP", channel - 1)
+      end
+      if reaper.GetMediaTrackInfo_Value(track, "I_RECMON") == 0 then
+        reaper.SetMediaTrackInfo_Value(track, "I_RECMON", 1)
+      end
+    end
+  end)
+  if found then reaper.SetProjExtState(0, settings_section, rig_routing_key, "1") end
+end
+
+-- Arms only the selected rig channel track; runs when the selection changes.
+local function sync_rig_arming(selected)
+  if selected == armed_for_selection then return end
+  armed_for_selection = selected
+  repair_rig_once()
+  for_each_rig_track(function(track)
+    local arm = track == selected and 1 or 0
+    if reaper.GetMediaTrackInfo_Value(track, "I_RECARM") ~= arm then
+      reaper.SetMediaTrackInfo_Value(track, "I_RECARM", arm)
+    end
+  end)
 end
 
 local function create_rig(devices)
@@ -196,10 +246,13 @@ local function create_rig(devices)
     reaper.SetMediaTrackInfo_Value(track, "I_FOLDERDEPTH", channel == #rig_track_names and -1 or 0)
     local input_id = channel == 16 and devices.nanokey_input or devices.yamaha_input
     reaper.SetMediaTrackInfo_Value(track, "I_RECINPUT", 4096 + (input_id << 5))
-    reaper.SetMediaTrackInfo_Value(track, "I_MIDI_INPUT_CHANMAP", channel)
+    -- REAPER's channel map is 0-based; hardware output channels are 1-based.
+    reaper.SetMediaTrackInfo_Value(track, "I_MIDI_INPUT_CHANMAP", channel - 1)
     reaper.SetMediaTrackInfo_Value(track, "I_MIDIHWOUT", (devices.yamaha_output << 5) | channel)
+    reaper.SetMediaTrackInfo_Value(track, "I_RECMON", 1)
   end
 
+  reaper.SetProjExtState(0, settings_section, rig_routing_key, "1")
   reaper.SetOnlyTrackSelected(reaper.GetTrack(0, master_index + 1))
   reaper.TrackList_AdjustWindows(false)
   reaper.UpdateArrange()
@@ -425,15 +478,16 @@ local function preview_config(Driver, track, ch)
   remember_config(track, ch)
 end
 
--- Draws wrapping category buttons; returns the category clicked this frame.
-local function category_buttons(id, categories)
+-- Draws wrapping category buttons (icons when available); returns the category clicked this frame.
+local function category_buttons(id, categories, icons, active)
   local clicked
   local avail = reaper.ImGui_GetContentRegionAvail(ctx)
   local pad_x = reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_FramePadding())
   local spacing_x = reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_ItemSpacing())
   local used = 0
   for _, category in ipairs(categories) do
-    local width = reaper.ImGui_CalcTextSize(ctx, category) + pad_x * 2
+    local icon = icon_font and icons[category]
+    local width = icon and icon_button_size or (reaper.ImGui_CalcTextSize(ctx, category) + pad_x * 2)
     if used > 0 then
       if used + spacing_x + width <= avail then
         reaper.ImGui_SameLine(ctx)
@@ -442,7 +496,24 @@ local function category_buttons(id, categories)
         used = 0
       end
     end
-    if reaper.ImGui_SmallButton(ctx, category .. "##" .. id .. category) then clicked = category end
+
+    local highlight = category == active
+    if highlight then reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Button(), 0x1E7E34FF) end
+    local pressed
+    if icon then
+      reaper.ImGui_PushFont(ctx, icon_font, 20)
+      pressed = reaper.ImGui_Button(ctx, icon.glyph .. "##" .. id .. category, icon_button_size, icon_button_size)
+      reaper.ImGui_PopFont(ctx)
+    else
+      pressed = reaper.ImGui_SmallButton(ctx, category .. "##" .. id .. category)
+    end
+    if highlight then reaper.ImGui_PopStyleColor(ctx) end
+    if pressed then clicked = category end
+
+    if reaper.ImGui_IsItemHovered(ctx) then
+      local label = icons[category] and string.format("%s (%s)", icons[category].name, category) or category
+      reaper.ImGui_SetTooltip(ctx, label)
+    end
     used = used + width
   end
   return clicked
@@ -474,7 +545,7 @@ function GUI.render(Driver, Chords, LP, devices)
   sync_selection_from_config(Driver, track, valid_hardware_channel and ch or nil)
 
   local size_condition = resize_window_on_start and reaper.ImGui_Cond_Always() or reaper.ImGui_Cond_FirstUseEver()
-  reaper.ImGui_SetNextWindowSize(ctx, 760, 1000, size_condition)
+  reaper.ImGui_SetNextWindowSize(ctx, 1100, 1000, size_condition)
   if resize_window_on_start then
     reaper.SetExtState(settings_section, window_size_key, "1", true)
     resize_window_on_start = false
@@ -487,24 +558,31 @@ function GUI.render(Driver, Chords, LP, devices)
     reaper.ImGui_SameLine(ctx)
     reaper.ImGui_TextColored(ctx, 0x00E5FFFF, string.format("[%s: %s %s]", track_name, Chords.current_root, Chords.current_type))
 
-    reaper.ImGui_Text(ctx, "Yamaha MX input")
-    reaper.ImGui_SameLine(ctx)
-    device_selector("##yamaha_input", devices.inputs, device_config.yamaha_input_name, "yamaha_input", devices.yamaha_input_device)
-    reaper.ImGui_Text(ctx, "Yamaha MX output")
-    reaper.ImGui_SameLine(ctx)
-    device_selector("##yamaha_output", devices.outputs, device_config.yamaha_output_name, "yamaha_output", devices.yamaha_output_device)
-    reaper.ImGui_Text(ctx, "Launchpad input")
-    reaper.ImGui_SameLine(ctx)
-    device_selector("##launchpad_input", devices.inputs, device_config.launchpad_input_name, "launchpad_input", devices.launchpad_input_device)
-    reaper.ImGui_Text(ctx, "nanoKEY2 input")
-    reaper.ImGui_SameLine(ctx)
-    device_selector("##nanokey_input", devices.inputs, device_config.nanokey_input_name, "nanokey_input", devices.nanokey_input_device)
-    if devices.missing.yamaha_input or devices.missing.yamaha_output then
-      reaper.ImGui_TextColored(ctx, 0xFFAA00FF, "Select the Yamaha MX input and output to create the rig.")
+    local has_rig = rig_exists()
+    if has_rig ~= rig_panel_state then
+      rig_panel_state = has_rig
+      reaper.ImGui_SetNextItemOpen(ctx, not has_rig, reaper.ImGui_Cond_Always())
     end
+    if reaper.ImGui_CollapsingHeader(ctx, "MIDI devices and rig") then
+      reaper.ImGui_Text(ctx, "Yamaha MX input")
+      reaper.ImGui_SameLine(ctx)
+      device_selector("##yamaha_input", devices.inputs, device_config.yamaha_input_name, "yamaha_input", devices.yamaha_input_device)
+      reaper.ImGui_Text(ctx, "Yamaha MX output")
+      reaper.ImGui_SameLine(ctx)
+      device_selector("##yamaha_output", devices.outputs, device_config.yamaha_output_name, "yamaha_output", devices.yamaha_output_device)
+      reaper.ImGui_Text(ctx, "Launchpad input")
+      reaper.ImGui_SameLine(ctx)
+      device_selector("##launchpad_input", devices.inputs, device_config.launchpad_input_name, "launchpad_input", devices.launchpad_input_device)
+      reaper.ImGui_Text(ctx, "nanoKEY2 input")
+      reaper.ImGui_SameLine(ctx)
+      device_selector("##nanokey_input", devices.inputs, device_config.nanokey_input_name, "nanokey_input", devices.nanokey_input_device)
+      if devices.missing.yamaha_input or devices.missing.yamaha_output then
+        reaper.ImGui_TextColored(ctx, 0xFFAA00FF, "Select the Yamaha MX input and output to create the rig.")
+      end
 
-    if reaper.ImGui_Button(ctx, "Create Rig") then
-      create_rig(devices)
+      if reaper.ImGui_Button(ctx, "Create Rig") then
+        create_rig(devices)
+      end
     end
 
     reaper.ImGui_Separator(ctx)
@@ -512,7 +590,7 @@ function GUI.render(Driver, Chords, LP, devices)
 
     if can_send then
       -- Hardware controls.
-      reaper.ImGui_TextWrapped(ctx, "To send arp notes back to REAPER, set Utility > Job > Quick Setup > Arp Rec on the MX88.")
+      reaper.ImGui_TextWrapped(ctx, "Play the MX with a rig track selected: it arms and monitors, so the notes pass through REAPER to the MX. To record the MX's arpeggio notes, set Utility > Job > Quick Setup > Arp Rec on the keyboard.")
       local s_chg, n_sw = reaper.ImGui_Checkbox(ctx, "Arpeggiator", arp_sw)
       if s_chg then
         arp_sw = n_sw
@@ -559,7 +637,8 @@ function GUI.render(Driver, Chords, LP, devices)
         reaper.ImGui_TableNextRow(ctx)
         reaper.ImGui_TableSetColumnIndex(ctx, 0)
         reaper.ImGui_Text(ctx, "Voices")
-        local jump_prg = category_buttons("v", Driver.voice_categories)
+        local active_prg = Driver.programs[selected_prg_idx]
+        local jump_prg = category_buttons("v", Driver.voice_categories, Icons.voice, active_prg and active_prg.category)
         reaper.ImGui_SetNextItemWidth(ctx, -1)
         _, search_prg = reaper.ImGui_InputTextWithHint(ctx, "##pfilt", "Search voices...", search_prg)
         if reaper.ImGui_BeginListBox(ctx, "##plist", -1, 320) then
@@ -583,7 +662,8 @@ function GUI.render(Driver, Chords, LP, devices)
 
         reaper.ImGui_TableSetColumnIndex(ctx, 1)
         reaper.ImGui_Text(ctx, "Arpeggios")
-        local jump_arp = category_buttons("a", Driver.arp_categories)
+        local active_arp = Driver.arpeggios[selected_arp_idx]
+        local jump_arp = category_buttons("a", Driver.arp_categories, Icons.arp, active_arp and active_arp.category)
         reaper.ImGui_SetNextItemWidth(ctx, -1)
         _, search_arp = reaper.ImGui_InputTextWithHint(ctx, "##afilt", "Search arpeggios...", search_arp)
         if reaper.ImGui_BeginListBox(ctx, "##alist", -1, 320) then

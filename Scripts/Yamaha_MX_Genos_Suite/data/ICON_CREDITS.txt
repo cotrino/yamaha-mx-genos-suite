@@ -1,0 +1,27 @@
+Icon credits for data/YamahaMXIcons.ttf
+
+The icons were converted into font glyphs (resized and recolored by the font format) by tools/build_icon_font.py.
+
+Material Design Icons v7.4.47 by Pictogrammers, https://pictogrammers.com/library/mdi/
+  License: Apache License 2.0 (see LICENSE-Apache-2.0.txt).
+
+game-icons.net, https://game-icons.net, licensed under Creative Commons Attribution 3.0
+(https://creativecommons.org/licenses/by/3.0/). Icons made by the following authors:
+  clarinet by Caro Asercion
+  drum-kit by Caro Asercion
+  french-horn by Caro Asercion
+  grand-piano by Caro Asercion
+  pipe-organ by Caro Asercion
+  bagpipes by Delapouite
+  banjo by Delapouite
+  drum by Delapouite
+  flute by Delapouite
+  gong by Delapouite
+  guitar-bass-head by Delapouite
+  harp by Delapouite
+  musical-keyboard by Delapouite
+  ocarina by Delapouite
+  piano-keys by Delapouite
+  tambourine by Delapouite
+  xylophone by Delapouite
+  violin by Zajkonur
